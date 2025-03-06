@@ -21,7 +21,7 @@ def test_so3_inv():
   
   rot = mr.SO3(r)
   
-  res = rot.mat() @ rot.inverse()
+  res = rot.mat() @ rot.inv()
   
   e = np.identity(3)
   
@@ -33,15 +33,15 @@ def test_so3_adj():
   
   res = mr.SO3(r)
   
-  np.testing.assert_array_equal(res.adj_mat(), res.mat())
+  np.testing.assert_array_equal(res.mat_adj(), res.mat())
   
-def test_so3_adj_inv():
+def test_so3_inv_adj():
   v = np.random.rand(3) 
   r = mr.SO3.exp(v)
   
   rot = mr.SO3(r)
   
-  res = rot.adj_mat() @ rot.adj_inv()
+  res = rot.mat_adj() @ rot.inv_adj()
   
   e = np.identity(3)
   

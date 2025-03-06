@@ -51,7 +51,7 @@ def test_cmtm_se3_adj():
   se3 = mr.SE3.set_mat(r)
   res = mr.CMTM[mr.SE3](se3)
 
-  np.testing.assert_array_equal(res.adj_mat(), se3.adj_mat())
+  np.testing.assert_array_equal(res.mat_adj(), se3.mat_adj())
   
 def test_cmtm_se3_vec1d():
   v = np.random.rand(6) 
@@ -63,10 +63,10 @@ def test_cmtm_se3_vec1d():
   res = mr.CMTM[mr.SE3](se3, vel)
   
   mat = np.zeros((12,12))
-  mat[0:6,0:6] = mat[6:12,6:12] = se3.adj_mat()
-  mat[6:12,0:6] = se3.adj_mat() @ se3.hat_adj(vel[0])
+  mat[0:6,0:6] = mat[6:12,6:12] = se3.mat_adj()
+  mat[6:12,0:6] = se3.mat_adj() @ se3.hat_adj(vel[0])
 
-  np.testing.assert_array_equal(res.adj_mat(), mat)
+  np.testing.assert_array_equal(res.mat_adj(), mat)
   
 def test_cmtm_se3_adj_vec2d():
   v = np.zeros(6)
@@ -77,11 +77,11 @@ def test_cmtm_se3_adj_vec2d():
   res = mr.CMTM[mr.SE3](se3, vec)
   
   mat = np.zeros((18,18))
-  mat[0:6,0:6] = mat[6:12,6:12] = mat[12:18,12:18] = se3.adj_mat()
-  mat[6:12,0:6] = mat[12:18,6:12] = se3.adj_mat() @ se3.hat_adj(vec[0])
-  mat[12:18,0:6] = se3.adj_mat() @ (se3.hat_adj(vec[1]) + se3.hat_adj(vec[0]) @ se3.hat_adj(vec[0])) * 0.5
+  mat[0:6,0:6] = mat[6:12,6:12] = mat[12:18,12:18] = se3.mat_adj()
+  mat[6:12,0:6] = mat[12:18,6:12] = se3.mat_adj() @ se3.hat_adj(vec[0])
+  mat[12:18,0:6] = se3.mat_adj() @ (se3.hat_adj(vec[1]) + se3.hat_adj(vec[0]) @ se3.hat_adj(vec[0])) * 0.5
 
-  np.testing.assert_array_equal(res.adj_mat(), mat)
+  np.testing.assert_array_equal(res.mat_adj(), mat)
   
 def test_cmtm_se3_getter():
   v = np.zeros(6)
@@ -107,9 +107,9 @@ def test_cmtm_se3_inv():
     
     mat = np.eye(4*(i+1))
 
-    np.testing.assert_allclose(res.mat() @ res.inverse(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat() @ res.inv(), mat, rtol=1e-15, atol=1e-15)
     
-def test_cmtm_se3_adj_inv():
+def test_cmtm_se3_inv_adj():
   v = np.zeros(6)
   r = mr.SE3.exp(v)
   se3 = mr.SE3.set_mat(r)  
@@ -121,7 +121,7 @@ def test_cmtm_se3_adj_inv():
     
     mat = np.eye(6*(i+1))
 
-    np.testing.assert_allclose(res.adj_mat() @ res.inverse_adj(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat_adj() @ res.inv_adj(), mat, rtol=1e-15, atol=1e-15)
     
 def test_cmtm_se3_tangent_mat():
   v = np.zeros(6)
@@ -161,7 +161,7 @@ def test_cmtm_se3_vec2d_tangent_mat():
 
   np.testing.assert_array_equal(res.tangent_mat(), mat)
   
-def test_cmtm_se3_tangent_adj_mat():
+def test_cmtm_se3_tangent_mat_adj():
   v = np.zeros(6)
   r = mr.SE3.exp(v)
   se3 = mr.SE3.set_mat(r)  
@@ -170,9 +170,9 @@ def test_cmtm_se3_tangent_adj_mat():
   
   mat = np.eye(6)
   
-  np.testing.assert_array_equal(res.tangent_adj_mat(), mat)
+  np.testing.assert_array_equal(res.tangent_mat_adj(), mat)
   
-def test_cmtm_se3_vec1d_tangent_adj_mat():
+def test_cmtm_se3_vec1d_tangent_mat_adj():
   v = np.zeros(6)
   r = mr.SE3.exp(v)
   se3 = mr.SE3.set_mat(r)  
@@ -183,9 +183,9 @@ def test_cmtm_se3_vec1d_tangent_adj_mat():
   mat = np.eye(12)
   mat[6:12, 0:6] = - mr.SE3.hat_adj(vel[0])
   
-  np.testing.assert_array_equal(res.tangent_adj_mat(), mat)
+  np.testing.assert_array_equal(res.tangent_mat_adj(), mat)
   
-def test_cmtm_se3_vec2d_tangent_adj_mat():
+def test_cmtm_se3_vec2d_tangent_mat_adj():
   v = np.zeros(6)
   r = mr.SE3.exp(v)
   se3 = mr.SE3.set_mat(r)  
@@ -197,7 +197,7 @@ def test_cmtm_se3_vec2d_tangent_adj_mat():
   mat[6:12, 0:6] = mat[12:18, 6:12] = - mr.SE3.hat_adj(vel[0])
   mat[12:18, 0:6] = - (mr.SE3.hat_adj(vel[1]) - mr.SE3.hat_adj(vel[0]) @ mr.SE3.hat_adj(vel[0])) 
 
-  np.testing.assert_array_equal(res.tangent_adj_mat(), mat)
+  np.testing.assert_array_equal(res.tangent_mat_adj(), mat)
   
 def test_cmtm_se3_tangent_inv():
   v = np.zeros(6)
@@ -213,7 +213,7 @@ def test_cmtm_se3_tangent_inv():
 
     np.testing.assert_allclose(res.tangent_mat() @ res.tangent_mat_inv(), mat, rtol=1e-15, atol=1e-15)
     
-def test_cmtm_se3_tangent_adj_inv():
+def test_cmtm_se3_tangent_inv_adj():
   v = np.zeros(6)
   r = mr.SE3.exp(v)
   se3 = mr.SE3.set_mat(r)  
@@ -225,4 +225,4 @@ def test_cmtm_se3_tangent_adj_inv():
     
     mat = np.eye(6*(i+1))
 
-    np.testing.assert_allclose(res.tangent_adj_mat() @ res.tangent_adj_mat_inv(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.tangent_mat_adj() @ res.tangent_mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)

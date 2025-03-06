@@ -18,7 +18,7 @@ def test_se3_inv():
   
   h = mr.SE3(m, v[3:6])
   
-  res = h.mat() @ h.inverse()
+  res = h.mat() @ h.inv()
   
   e = np.identity(4)
   
@@ -36,25 +36,25 @@ def test_se3_adj():
   m[3:6,0:3] = mr.SO3.hat(v[3:6])@r
   m[3:6, 3:6] = r 
   
-  np.testing.assert_allclose(res.adj_mat(), m)
+  np.testing.assert_allclose(res.mat_adj(), m)
   
 def test_se3_set_adj():
   v = np.random.rand(6)
   m = mr.SO3.exp(v[0:3]) 
   h = mr.SE3(m, v[3:6])
   
-  res = mr.SE3.set_adj_mat(h.adj_mat())
+  res = mr.SE3.set_mat_adj(h.mat_adj())
   
   np.testing.assert_allclose(res.mat(), h.mat())
   
-def test_se3_adj_inv():
+def test_se3_inv_adj():
   v = np.random.rand(6)
   v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
   m = mr.SO3.exp(v[0:3]) 
   
   h = mr.SE3(m, v[3:6])
   
-  res = h.adj_mat() @ h.adj_inv()
+  res = h.mat_adj() @ h.inv_adj()
   
   e = np.identity(6)
   
@@ -186,7 +186,7 @@ def test_se3_matmul_mat6d():
   
   mat = mr.SE3(m, v[3:6])
   
-  m = mr.SE3(m.transpose(), -m.transpose() @ v[3:6]).adj_mat()
+  m = mr.SE3(m.transpose(), -m.transpose() @ v[3:6]).mat_adj()
 
   res = mat@m
   
