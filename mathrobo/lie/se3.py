@@ -38,12 +38,12 @@ class SE3(LieAbstract):
   def pos_quaternion(self):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
     
-  def inverse(self):
+  def inv(self):
     self._rot = self._rot.transpose()
     self._pos = -self._rot @ self._pos
     return self.mat()
   
-  def adj_mat(self):
+  def mat_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot
@@ -53,13 +53,13 @@ class SE3(LieAbstract):
     return mat
   
   @staticmethod
-  def set_adj_mat(mat = identity(6)):
+  def set_mat_adj(mat = identity(6)):
     rot = (mat[0:3,0:3] + mat[3:6,3:6]) * 0.5
     pos = SO3.vee(mat[3:6,0:3] @ rot.transpose())
     
     return SE3(rot, pos)
 
-  def adj_inv(self):
+  def inv_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot.transpose()
@@ -341,7 +341,7 @@ class SE3(LieAbstract):
       elif rval.shape == (4,4):
         return self.mat() @ rval
       elif rval.shape == (6,6):
-        return self.adj_mat() @ rval
+        return self.mat_adj() @ rval
     else:
       TypeError("Right operand should be SE3 or numpy.ndarray")
   
@@ -355,7 +355,7 @@ class SE3wrench(SE3):
     
     return mat
   
-  def adj_mat(self):
+  def mat_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot

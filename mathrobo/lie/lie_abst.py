@@ -38,10 +38,10 @@ class LieAbstract:
   def exp_integ(vec, a, LIB = 'numpy'):
     pass
   
-  def inverse(self):
+  def inv(self):
     pass
   
-  def adj_mat(self):
+  def mat_adj(self):
     '''
     adjoint expresion of Lie group
     '''
