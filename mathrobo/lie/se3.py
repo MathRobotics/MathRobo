@@ -27,7 +27,7 @@ class SE3(LieAbstract):
   
   @staticmethod
   def set_pos_quaternion(pos, quaternion):
-    return SE3(SO3.quaternion_to_rotation_matrix(quaternion), pos)
+    return SE3(SO3.quaternion_to_rot_mat(quaternion), pos)
 
   def pos(self):
     return self._pos
