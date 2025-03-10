@@ -344,6 +344,11 @@ class SE3(LieAbstract):
         return self.mat_adj() @ rval
     else:
       TypeError("Right operand should be SE3 or numpy.ndarray")
+
+  @staticmethod
+  def rand():
+    p = np.random.rand(3) 
+    return SE3(SO3.rand().mat(), p)
   
 class SE3wrench(SE3):
   def mat(self):

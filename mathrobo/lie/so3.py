@@ -278,6 +278,12 @@ class SO3(LieAbstract):
       return self._rot @ rval
     else:
       TypeError("Right operand should be SO3 or numpy.ndarray")
+
+  @staticmethod
+  def rand():
+    v = np.random.rand(3) 
+    m = SO3.exp(v)
+    return SO3(m)
   
 class SO3wrench(SO3):
   @staticmethod
