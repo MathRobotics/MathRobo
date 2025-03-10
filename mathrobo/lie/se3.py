@@ -39,9 +39,10 @@ class SE3(LieAbstract):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
     
   def inv(self):
-    self._rot = self._rot.transpose()
-    self._pos = -self._rot @ self._pos
-    return self.mat()
+    mat = identity(4, self.lib)
+    mat[0:3,0:3] = self._rot.transpose()
+    mat[0:3,3] = -self._rot.transpose() @ self._pos
+    return mat
   
   def mat_adj(self):
     mat = zeros((6,6), self.lib)
@@ -394,7 +395,7 @@ class SE3wrench(SE3):
   @staticmethod
   def exp_integ(vec, a, LIB = 'numpy'):
     return SE3.exp_integ_adj(vec, a, LIB).transpose()
-
+  
 '''
   Khalil, et al. 1995
 '''
