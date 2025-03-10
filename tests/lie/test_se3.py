@@ -12,11 +12,7 @@ def test_se3():
   np.testing.assert_array_equal(res.mat(), e)
   
 def test_se3_inv():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  m = mr.SO3.exp(v[0:3]) 
-  
-  h = mr.SE3(m, v[3:6])
+  h = mr.SE3.rand()
   
   res = h.mat() @ h.inv()
   
@@ -39,26 +35,18 @@ def test_se3_adj():
   np.testing.assert_allclose(res.mat_adj(), m)
   
 def test_se3_set_adj():
-  v = np.random.rand(6)
-  m = mr.SO3.exp(v[0:3]) 
-  h = mr.SE3(m, v[3:6])
+  h = mr.SE3.rand()
   
   res = mr.SE3.set_mat_adj(h.mat_adj())
   
   np.testing.assert_allclose(res.mat(), h.mat())
   
 def test_se3_inv_adj():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  m = mr.SO3.exp(v[0:3]) 
-  
-  h = mr.SE3(m, v[3:6])
+  h = mr.SE3.rand()
   
   res = h.mat_adj() @ h.inv_adj()
   
-  e = np.identity(6)
-  
-  np.testing.assert_allclose(res, e, rtol=1e-15, atol=1e-15)
+  np.testing.assert_allclose(res, np.eye(6), rtol=1e-15, atol=1e-15)
 
 def test_se3_hat():
   v = np.random.rand(6)  
@@ -209,11 +197,7 @@ def test_se3_matmul_vec6d():
   np.testing.assert_allclose(res, ref, rtol=1e-15, atol=1e-15)
 
 def test_se3_matmul_vec3d():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  r = mr.SO3.exp(v[0:3]) 
-  
-  h = mr.SE3(r, v[3:6])
+  h = mr.SE3.rand()
   vec = np.random.rand(3)
 
   res = h @ vec
