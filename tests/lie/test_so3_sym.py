@@ -42,13 +42,13 @@ def test_so3_exp():
   
   r = mr.SO3.exp(v, a, 'sympy')
 
-  angle = np.random.rand(1)
+  angle = np.random.rand()
   vec = np.random.rand(3)
   
   vec = vec / np.linalg.norm(vec)
   
   res = mr.sympy_subs_mat(r, x, vec)
-  res = res.subs([(a, angle[0])]) 
+  res = res.subs([(a, angle)]) 
   
   m = mr.SO3.exp(vec, angle)
   
@@ -61,13 +61,13 @@ def test_so3_exp_integ():
   
   r = mr.SO3.exp_integ(v, a, 'sympy')
 
-  angle = np.random.rand(1)
+  angle = np.random.rand()
   vec = np.random.rand(3)
   
   vec = vec / np.linalg.norm(vec)
 
   res = mr.sympy_subs_mat(r, x, vec)
-  res = res.subs([(a, angle[0])]) 
+  res = res.subs([(a, angle)]) 
   
   m = mr.SO3.exp_integ(vec, angle)
   
@@ -80,13 +80,13 @@ def test_so3_exp_integ2nd():
   
   r = mr.SO3.exp_integ2nd(v, a, 'sympy')
 
-  angle = np.random.rand(1)
+  angle = np.random.rand()
   vec = np.random.rand(3)
   
   vec = vec / np.linalg.norm(vec)
 
   res = mr.sympy_subs_mat(r, x, vec)
-  res = res.subs([(a, angle[0])]) 
+  res = res.subs([(a, angle)]) 
   
   m = mr.SO3.exp_integ2nd(vec, angle)
   
@@ -101,7 +101,7 @@ def test_so3_jac_lie_wrt_scaler():
   
   r = mr.jac_lie_wrt_scaler(mr.SO3, v, a, dv, 'sympy')
 
-  angle = np.random.rand(1)
+  angle = np.random.rand()
   vec = np.random.rand(3)
   dvec = np.random.rand(3)
   
@@ -109,7 +109,7 @@ def test_so3_jac_lie_wrt_scaler():
 
   res = mr.sympy_subs_mat(r, x, vec)
   res = mr.sympy_subs_mat(res, dx, dvec)
-  res = res.subs([(a, angle[0])]) 
+  res = res.subs([(a, angle)]) 
 
   m = mr.jac_lie_wrt_scaler(mr.SO3, vec, angle, dvec)
   
@@ -126,7 +126,7 @@ def test_so3_jac_lie_wrt_scaler():
 #   r_ = mr.jac_lie_wrt_scaler(mr.SO3, v, a_, dv, 'sympy')
 #   r = sp.integrate(r_, [a_, 0, a])
   
-#   angle = np.random.rand(1)
+#   angle = np.random.rand()
 #   vec = np.random.rand(3)
 #   dvec = np.random.rand(3)
   
@@ -139,6 +139,6 @@ def test_so3_jac_lie_wrt_scaler():
 
 #   res = mr.sympy_subs_mat(r, x, vec)
 #   res = mr.sympy_subs_mat(res, dx, dvec)
-#   res = res.subs([(a, angle[0])]) 
+#   res = res.subs([(a, angle)]) 
   
 #   np.testing.assert_allclose(m, mr.sympy_to_numpy(res))

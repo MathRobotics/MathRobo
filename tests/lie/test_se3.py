@@ -12,13 +12,9 @@ def test_se3():
   np.testing.assert_array_equal(res.mat(), e)
   
 def test_se3_inv():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  m = mr.SO3.exp(v[0:3]) 
+  h = mr.SE3.rand()
   
-  h = mr.SE3(m, v[3:6])
-  
-  res = h.mat() @ h.inverse()
+  res = h.mat() @ h.inv()
   
   e = np.identity(4)
   
@@ -36,29 +32,21 @@ def test_se3_adj():
   m[3:6,0:3] = mr.SO3.hat(v[3:6])@r
   m[3:6, 3:6] = r 
   
-  np.testing.assert_allclose(res.adj_mat(), m)
+  np.testing.assert_allclose(res.mat_adj(), m)
   
 def test_se3_set_adj():
-  v = np.random.rand(6)
-  m = mr.SO3.exp(v[0:3]) 
-  h = mr.SE3(m, v[3:6])
+  h = mr.SE3.rand()
   
-  res = mr.SE3.set_adj_mat(h.adj_mat())
+  res = mr.SE3.set_mat_adj(h.mat_adj())
   
   np.testing.assert_allclose(res.mat(), h.mat())
   
-def test_se3_adj_inv():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  m = mr.SO3.exp(v[0:3]) 
+def test_se3_inv_adj():
+  h = mr.SE3.rand()
   
-  h = mr.SE3(m, v[3:6])
+  res = h.mat_adj() @ h.inv_adj()
   
-  res = h.adj_mat() @ h.adj_inv()
-  
-  e = np.identity(6)
-  
-  np.testing.assert_allclose(res, e, rtol=1e-15, atol=1e-15)
+  np.testing.assert_allclose(res, np.eye(6), rtol=1e-15, atol=1e-15)
 
 def test_se3_hat():
   v = np.random.rand(6)  
@@ -90,7 +78,7 @@ def test_se3_vee():
   
 def test_se3_exp():
   v = np.random.rand(6)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SE3.exp(v, a)
 
   m = expm(a*mr.SE3.hat(v))
@@ -99,7 +87,7 @@ def test_se3_exp():
   
 def test_se3_exp_integ():
   v = np.random.rand(6)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SE3.exp_integ(v, a)
 
   def integrad(s):
@@ -135,7 +123,7 @@ def test_se3_hat_adj_commute():
   
 def test_se3_exp_adj():
   v = np.random.rand(6)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SE3.exp_adj(v, a)
 
   m = expm(a*mr.SE3.hat_adj(v))
@@ -165,6 +153,19 @@ def test_se3_matmul():
   res = h1@h2
   
   np.testing.assert_allclose(res.mat(), np.eye(4), rtol=1e-15, atol=1e-15)
+  
+def test_se3_matmul_mat4d():
+  v = np.random.rand(6)
+  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
+  m = mr.SO3.exp(v[0:3]) 
+  
+  mat = mr.SE3(m, v[3:6])
+  
+  m = mr.SE3(m.transpose(), -m.transpose() @ v[3:6]).mat()
+
+  res = mat@m
+  
+  np.testing.assert_allclose(res, np.eye(4), rtol=1e-15, atol=1e-15)
 
 def test_se3_matmul_mat6d():
   v = np.random.rand(6)
@@ -173,7 +174,7 @@ def test_se3_matmul_mat6d():
   
   mat = mr.SE3(m, v[3:6])
   
-  m = mr.SE3(m.transpose(), -m.transpose() @ v[3:6]).adj_mat()
+  m = mr.SE3(m.transpose(), -m.transpose() @ v[3:6]).mat_adj()
 
   res = mat@m
   
@@ -196,11 +197,7 @@ def test_se3_matmul_vec6d():
   np.testing.assert_allclose(res, ref, rtol=1e-15, atol=1e-15)
 
 def test_se3_matmul_vec3d():
-  v = np.random.rand(6)
-  v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
-  r = mr.SO3.exp(v[0:3]) 
-  
-  h = mr.SE3(r, v[3:6])
+  h = mr.SE3.rand()
   vec = np.random.rand(3)
 
   res = h @ vec

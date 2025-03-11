@@ -27,7 +27,7 @@ class SE3(LieAbstract):
   
   @staticmethod
   def set_pos_quaternion(pos, quaternion):
-    return SE3(SO3.quaternion_to_rotation_matrix(quaternion), pos)
+    return SE3(SO3.quaternion_to_rot_mat(quaternion), pos)
 
   def pos(self):
     return self._pos
@@ -38,12 +38,13 @@ class SE3(LieAbstract):
   def pos_quaternion(self):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
     
-  def inverse(self):
-    self._rot = self._rot.transpose()
-    self._pos = -self._rot @ self._pos
-    return self.mat()
+  def inv(self):
+    mat = identity(4, self.lib)
+    mat[0:3,0:3] = self._rot.transpose()
+    mat[0:3,3] = -self._rot.transpose() @ self._pos
+    return mat
   
-  def adj_mat(self):
+  def mat_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot
@@ -53,13 +54,13 @@ class SE3(LieAbstract):
     return mat
   
   @staticmethod
-  def set_adj_mat(mat = identity(6)):
+  def set_mat_adj(mat = identity(6)):
     rot = (mat[0:3,0:3] + mat[3:6,3:6]) * 0.5
     pos = SO3.vee(mat[3:6,0:3] @ rot.transpose())
     
     return SE3(rot, pos)
 
-  def adj_inv(self):
+  def inv_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot.transpose()
@@ -140,7 +141,7 @@ class SE3(LieAbstract):
     """
     if LIB == 'numpy':
       theta = norm(vec[0:3], LIB)
-      if theta != 1.0:
+      if not np.isclose(theta, 1.0):
         a_ = a*theta
       else:
         a_ = a
@@ -338,10 +339,17 @@ class SE3(LieAbstract):
         v[0:3] = self._rot @ rval[0:3]
         v[3:6] = SO3.hat(self._pos, self.lib) @ self._rot @ rval[0:3] + self._rot @ rval[3:6]
         return v
+      elif rval.shape == (4,4):
+        return self.mat() @ rval
       elif rval.shape == (6,6):
-        return self.adj_mat() @ rval
+        return self.mat_adj() @ rval
     else:
       TypeError("Right operand should be SE3 or numpy.ndarray")
+
+  @staticmethod
+  def rand():
+    p = np.random.rand(3) 
+    return SE3(SO3.rand().mat(), p)
   
 class SE3wrench(SE3):
   def mat(self):
@@ -353,7 +361,7 @@ class SE3wrench(SE3):
     
     return mat
   
-  def adj_mat(self):
+  def mat_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot
@@ -387,7 +395,7 @@ class SE3wrench(SE3):
   @staticmethod
   def exp_integ(vec, a, LIB = 'numpy'):
     return SE3.exp_integ_adj(vec, a, LIB).transpose()
-
+  
 '''
   Khalil, et al. 1995
 '''

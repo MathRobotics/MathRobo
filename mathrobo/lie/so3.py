@@ -67,7 +67,7 @@ class SO3(LieAbstract):
     return q  # [w, x, y, z]
     
   @staticmethod
-  def quaternion_to_rotation_matrix(quaternion):
+  def quaternion_to_rot_mat(quaternion):
     w, x, y, z = quaternion
 
     m = np.array([
@@ -80,19 +80,19 @@ class SO3(LieAbstract):
 
   @staticmethod
   def set_quaternion(quaternion):
-    return SO3(SO3.quaternion_to_rotation_matrix(quaternion))
+    return SO3(SO3.quaternion_to_rot_mat(quaternion))
     
-  def inverse(self):
+  def inv(self):
     return self._rot.transpose()
 
-  def adj_mat(self):
+  def mat_adj(self):
     return self._rot
   
   @staticmethod
-  def set_adj_mat(mat = identity(3)):
+  def set_mat_adj(mat = identity(3)):
     return SO3(mat)
 
-  def adj_inv(self):
+  def inv_adj(self):
     return self._rot.transpose()
 
   @staticmethod
@@ -127,7 +127,7 @@ class SO3(LieAbstract):
     """
     if LIB == 'numpy':
       theta = norm(vec, LIB)
-      if theta != 1.0:
+      if not np.isclose(theta, 1.0):
         a_ = a*theta
       else:
         a_ = a
@@ -135,9 +135,7 @@ class SO3(LieAbstract):
       if iszero(theta):
         return identity(3)
       else:
-        x = vec[0]/theta
-        y = vec[1]/theta
-        z = vec[2]/theta           
+        x, y, z = vec / theta           
 
     elif LIB == 'sympy':
       a_ = a
@@ -172,7 +170,7 @@ class SO3(LieAbstract):
     """
     if LIB == 'numpy':
       theta = norm(vec, LIB)
-      if theta != 1.0:
+      if not np.isclose(theta, 1.0):
         a_ = a*theta
       else:
         a_ = a
@@ -218,7 +216,7 @@ class SO3(LieAbstract):
     """
     if LIB == 'numpy':
       theta = norm(vec, LIB)
-      if theta != 1.0:
+      if not np.isclose(theta, 1.0):
         a_ = a*theta
       else:
         a_ = a
@@ -280,6 +278,12 @@ class SO3(LieAbstract):
       return self._rot @ rval
     else:
       TypeError("Right operand should be SO3 or numpy.ndarray")
+
+  @staticmethod
+  def rand():
+    v = np.random.rand(3) 
+    m = SO3.exp(v)
+    return SO3(m)
   
 class SO3wrench(SO3):
   @staticmethod

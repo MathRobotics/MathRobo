@@ -13,7 +13,7 @@ class CMTM(Generic[T]):
     self._vecs = elem_vecs
     self._dof = elem_mat.mat().shape[0]
     self._mat_size = elem_mat.mat().shape[0]
-    self._adj_mat_size = elem_mat.adj_mat().shape[0]
+    self._mat_adj_size = elem_mat.mat_adj().shape[0]
     self._n = elem_vecs.shape[0] + 1
     self.lib = LIB
     
@@ -35,22 +35,22 @@ class CMTM(Generic[T]):
           mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__mat_elem(abs(i-j))
     return mat
   
-  def __adj_mat_elem(self, p):
+  def __mat_adj_elem(self, p):
     if p == 0:
-      return self._mat.adj_mat()
+      return self._mat.mat_adj()
     else:
-      mat = zeros( (self._adj_mat_size, self._adj_mat_size) ) 
+      mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
       for i in range(p):
-        mat = mat + self.__adj_mat_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+        mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
         
       return mat / p
     
-  def adj_mat(self):
-    mat = identity(self._adj_mat_size * self._n)
+  def mat_adj(self):
+    mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i >= j :
-          mat[self._adj_mat_size*i:self._adj_mat_size*(i+1),self._adj_mat_size*j:self._adj_mat_size*(j+1)] = self.__adj_mat_elem(abs(i-j))
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_adj_elem(abs(i-j))
     return mat
   
   def elem_mat(self):
@@ -65,7 +65,7 @@ class CMTM(Generic[T]):
 
   def __mat_inv_elem(self, p):
     if p == 0:
-      return self._mat.inverse()
+      return self._mat.inv()
     else:
       mat = zeros( (self._mat_size, self._mat_size) ) 
       for i in range(p):
@@ -73,7 +73,7 @@ class CMTM(Generic[T]):
         
       return mat / p
   
-  def inverse(self):
+  def inv(self):
     mat = identity(self._mat_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
@@ -81,22 +81,22 @@ class CMTM(Generic[T]):
           mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__mat_inv_elem(abs(i-j))
     return mat
   
-  def __mat_adj_inv_elem(self, p):
+  def __mat_inv_adj_elem(self, p):
     if p == 0:
-      return self._mat.adj_inv()
+      return self._mat.inv_adj()
     else:
-      mat = zeros( (self._adj_mat_size, self._adj_mat_size) ) 
+      mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
       for i in range(p):
-        mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__mat_adj_inv_elem(p-(i+1))
+        mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__mat_inv_adj_elem(p-(i+1))
         
       return mat / p
   
-  def inverse_adj(self):
-    mat = identity(self._adj_mat_size * self._n)
+  def inv_adj(self):
+    mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i >= j :
-          mat[self._adj_mat_size*i:self._adj_mat_size*(i+1),self._adj_mat_size*j:self._adj_mat_size*(j+1)] = self.__mat_adj_inv_elem(abs(i-j))
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_inv_adj_elem(abs(i-j))
     return mat
   
   def __tangent_mat_elem(self, p):
@@ -124,29 +124,29 @@ class CMTM(Generic[T]):
           mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self._mat.hat(self._vecs[abs(i-j-1)])
     return mat
   
-  def __tangent_adj_mat_elem(self, p):
+  def __tangent_mat_adj_elem(self, p):
     if p == 0:
-      return identity( self._adj_mat_size ) 
+      return identity( self._mat_adj_size ) 
     else:
-      mat = zeros( (self._adj_mat_size, self._adj_mat_size) )
+      mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
       for i in range(p):
-        mat = mat - self.__tangent_adj_mat_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+        mat = mat - self.__tangent_mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
       return mat
   
-  def tangent_adj_mat(self):
-    mat = identity(self._adj_mat_size * self._n)
+  def tangent_mat_adj(self):
+    mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i >= j :
-          mat[self._adj_mat_size*i:self._adj_mat_size*(i+1),self._adj_mat_size*j:self._adj_mat_size*(j+1)] = self.__tangent_adj_mat_elem(abs(i-j))
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_adj_elem(abs(i-j))
     return mat
   
-  def tangent_adj_mat_inv(self):
-    mat = identity(self._adj_mat_size * self._n)
+  def tangent_mat_inv_adj(self):
+    mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i > j :
-          mat[self._adj_mat_size*i:self._adj_mat_size*(i+1),self._adj_mat_size*j:self._adj_mat_size*(j+1)] = self._mat.hat_adj(self._vecs[abs(i-j-1)])
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self._mat.hat_adj(self._vecs[abs(i-j-1)])
     return mat
   
   def __matmul__(self, rval):

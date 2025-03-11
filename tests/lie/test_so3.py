@@ -6,42 +6,26 @@ from scipy import integrate
 import mathrobo as mr
 
 def test_so3():
-  v = np.zeros(3)
-  r = mr.SO3.exp(v)
-
-  res = mr.SO3(r)
+  res = mr.SO3()
   
-  e = np.identity(3)
-
-  np.testing.assert_array_equal(res.mat(), e)
+  np.testing.assert_array_equal(res.mat(), np.eye(3))
   
 def test_so3_inv():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
-  
-  rot = mr.SO3(r)
-  
-  res = rot.mat() @ rot.inverse()
+  rot = mr.SO3.rand()
+  res = rot @ rot.inv()
   
   e = np.identity(3)
   
   np.testing.assert_allclose(res, e, rtol=1e-15, atol=1e-15)
   
 def test_so3_adj():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
+  res = mr.SO3.rand()
   
-  res = mr.SO3(r)
+  np.testing.assert_array_equal(res.mat_adj(), res.mat())
   
-  np.testing.assert_array_equal(res.adj_mat(), res.mat())
-  
-def test_so3_adj_inv():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
-  
-  rot = mr.SO3(r)
-  
-  res = rot.adj_mat() @ rot.adj_inv()
+def test_so3_inv_adj():
+  rot = mr.SO3.rand()
+  res = rot.mat_adj() @ rot.inv_adj()
   
   e = np.identity(3)
   
@@ -74,7 +58,7 @@ def test_so3_vee():
 
 def test_so3_exp():
   v = np.random.rand(3)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SO3.exp(v, a)
 
   m = expm(a*mr.SO3.hat(v))
@@ -83,7 +67,7 @@ def test_so3_exp():
   
 def test_so3_exp_integ():
   v = np.random.rand(3)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SO3.exp_integ(v, a)
 
   def integrad(s):
@@ -95,7 +79,7 @@ def test_so3_exp_integ():
   
 def test_so3_exp_integ2nd():
   v = np.random.rand(3)
-  a = np.random.rand(1)
+  a = np.random.rand()
   res = mr.SO3.exp_integ2nd(v, a)
 
   def integrad(s_):
@@ -109,9 +93,8 @@ def test_so3_exp_integ2nd():
   
   np.testing.assert_allclose(res, mat)
   
-def test_so3_matmul():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
+def test_so3_matmul():  
+  r = mr.SO3.rand().mat()
   
   rot1 = mr.SO3(r)
   rot2 = mr.SO3(r.transpose())
@@ -120,8 +103,7 @@ def test_so3_matmul():
   np.testing.assert_allclose(res.mat(), np.eye(3), rtol=1e-15, atol=1e-15)
 
 def test_so3_matmul_mat():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
+  r = mr.SO3.rand().mat()
   
   rot1 = mr.SO3(r)
   rot2 = mr.SO3(r.transpose())
@@ -130,9 +112,7 @@ def test_so3_matmul_mat():
   np.testing.assert_allclose(res, np.eye(3), rtol=1e-15, atol=1e-15)
 
 def test_so3_matmul_vec():
-  v = np.random.rand(3) 
-  r = mr.SO3.exp(v)
-
+  r = mr.SO3.rand().mat()
   vec = np.random.rand(3)
   
   rot = mr.SO3(r)
