@@ -87,7 +87,7 @@ def test_cmtm_se3_inv():
     
     mat = np.eye(4*(i+1))
 
-    np.testing.assert_allclose(res.mat() @ res.inv(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat() @ res.mat_inv(), mat, rtol=1e-15, atol=1e-15)
     
 def test_cmtm_se3_inv_adj():
   se3 = mr.SE3.rand()   
@@ -99,7 +99,7 @@ def test_cmtm_se3_inv_adj():
     
     mat = np.eye(6*(i+1))
     
-    np.testing.assert_allclose(res.mat_adj() @ res.inv_adj(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat_adj() @ res.mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
     
 def test_cmtm_se3_tangent_mat():
   se3 = mr.SE3.rand()   
