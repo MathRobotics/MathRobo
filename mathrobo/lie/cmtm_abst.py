@@ -65,7 +65,7 @@ class CMTM(Generic[T]):
 
   def __mat_inv_elem(self, p):
     if p == 0:
-      return self._mat.inv()
+      return self._mat.mat_inv()
     else:
       mat = zeros( (self._mat_size, self._mat_size) ) 
       for i in range(p):
@@ -73,7 +73,7 @@ class CMTM(Generic[T]):
         
       return mat / p
   
-  def inv(self):
+  def mat_inv(self):
     mat = identity(self._mat_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
@@ -83,7 +83,7 @@ class CMTM(Generic[T]):
   
   def __mat_inv_adj_elem(self, p):
     if p == 0:
-      return self._mat.inv_adj()
+      return self._mat.mat_inv_adj()
     else:
       mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
       for i in range(p):
@@ -91,7 +91,7 @@ class CMTM(Generic[T]):
         
       return mat / p
   
-  def inv_adj(self):
+  def mat_inv_adj(self):
     mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):

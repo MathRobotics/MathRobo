@@ -14,9 +14,7 @@ def test_so3_inv():
   rot = mr.SO3.rand()
   res = rot @ rot.inv()
   
-  e = np.identity(3)
-  
-  np.testing.assert_allclose(res, e, rtol=1e-15, atol=1e-15)
+  np.testing.assert_allclose(res.mat(), np.identity(3), rtol=1e-15, atol=1e-15)
   
 def test_so3_adj():
   res = mr.SO3.rand()
@@ -25,7 +23,7 @@ def test_so3_adj():
   
 def test_so3_inv_adj():
   rot = mr.SO3.rand()
-  res = rot.mat_adj() @ rot.inv_adj()
+  res = rot.mat_adj() @ rot.mat_inv_adj()
   
   e = np.identity(3)
   

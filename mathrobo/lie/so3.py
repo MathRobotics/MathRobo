@@ -81,8 +81,11 @@ class SO3(LieAbstract):
   @staticmethod
   def set_quaternion(quaternion):
     return SO3(SO3.quaternion_to_rot_mat(quaternion))
-    
+  
   def inv(self):
+    return SO3(self._rot.transpose())
+    
+  def mat_inv(self):
     return self._rot.transpose()
 
   def mat_adj(self):
@@ -92,7 +95,7 @@ class SO3(LieAbstract):
   def set_mat_adj(mat = identity(3)):
     return SO3(mat)
 
-  def inv_adj(self):
+  def mat_inv_adj(self):
     return self._rot.transpose()
 
   @staticmethod
