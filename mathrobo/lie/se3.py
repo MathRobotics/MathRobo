@@ -39,6 +39,9 @@ class SE3(LieAbstract):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
     
   def inv(self):
+    return SE3(self._rot.transpose(), -self._rot.transpose() @ self._pos)
+
+  def mat_inv(self):
     mat = identity(4, self.lib)
     mat[0:3,0:3] = self._rot.transpose()
     mat[0:3,3] = -self._rot.transpose() @ self._pos
@@ -60,7 +63,7 @@ class SE3(LieAbstract):
     
     return SE3(rot, pos)
 
-  def inv_adj(self):
+  def mat_inv_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot.transpose()
