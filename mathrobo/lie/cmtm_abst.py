@@ -53,6 +53,14 @@ class CMTM(Generic[T]):
           mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_adj_elem(abs(i-j))
     return mat
   
+  @staticmethod
+  def eye(T):
+    return CMTM(T.eye(), np.zeros((2,T.dof())))
+  
+  @staticmethod
+  def rand(T):
+    return CMTM(T.rand(), np.random.rand(2,T.dof()))  
+  
   def elem_mat(self):
     return self._mat.mat()
   
