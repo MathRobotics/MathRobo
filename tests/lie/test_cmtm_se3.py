@@ -188,3 +188,27 @@ def test_cmtm_se3_tan_inv_adj():
     mat = np.eye(6*(i+1))
 
     np.testing.assert_allclose(res.tan_mat_adj() @ res.tan_mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
+    
+def test_cmtm_se3_matmul():
+  se3 = mr.SE3.rand()
+  vel = np.random.rand(2,6)
+  
+  res1 = mr.CMTM[mr.SE3](se3, vel)
+  res2 = mr.CMTM.eye(mr.SE3)
+  
+  mat1 = res1.mat() @ res2.mat()
+  mat2 = mr.CMTM[mr.SE3](se3, vel).mat()
+  
+  np.testing.assert_allclose(mat1, mat2, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_se3_multiply():
+  se3 = mr.SE3.rand()
+  vel = np.random.rand(2,6)
+  
+  res1 = mr.CMTM[mr.SE3](se3, vel)
+  res2 = mr.CMTM.eye(mr.SE3)
+  
+  mat1 = res1 @ res2
+  mat2 = mr.CMTM[mr.SE3](se3, vel)
+  
+  np.testing.assert_allclose(mat1.mat(), mat2.mat(), rtol=1e-15, atol=1e-15)

@@ -184,3 +184,27 @@ def test_cmtm_so3_tan_inv_adj():
     mat = np.eye(3*(i+1))
 
     np.testing.assert_allclose(res.tan_mat_adj() @ res.tan_mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_so3_matmul():
+  so3 = mr.SO3.rand()
+  vel = np.random.rand(2,3)
+  
+  res1 = mr.CMTM[mr.SO3](so3, vel)
+  res2 = mr.CMTM.eye(mr.SO3)
+  
+  mat1 = res1.mat() @ res2.mat()
+  mat2 = mr.CMTM[mr.SO3](so3, vel).mat()
+  
+  np.testing.assert_allclose(mat1, mat2, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_so3_multiply():
+  so3 = mr.SO3.rand()
+  vel = np.random.rand(2,3)
+  
+  res1 = mr.CMTM[mr.SO3](so3, vel)
+  res2 = mr.CMTM.eye(mr.SO3)
+  
+  mat1 = res1 @ res2
+  mat2 = mr.CMTM[mr.SO3](so3, vel)
+  
+  np.testing.assert_allclose(mat1.mat(), mat2.mat(), rtol=1e-15, atol=1e-15)
