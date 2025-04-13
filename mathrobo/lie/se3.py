@@ -37,7 +37,11 @@ class SE3(LieAbstract):
   
   def pos_quaternion(self):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
-    
+
+  @staticmethod
+  def eye():
+    return SE3(identity(3), zeros(3)) 
+
   def inv(self):
     return SE3(self._rot.transpose(), -self._rot.transpose() @ self._pos)
 

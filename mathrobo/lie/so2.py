@@ -36,6 +36,10 @@ class SO2(LieAbstract):
   def set_quaternion(quaternion):
     return SO2(SO2.angle_to_rot_mat(quaternion))
     
+  @staticmethod
+  def eye():
+    return SO2(identity(2))
+
   def inv(self):
     return self._rot.transpose()
 

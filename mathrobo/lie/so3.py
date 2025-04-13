@@ -82,6 +82,10 @@ class SO3(LieAbstract):
   def set_quaternion(quaternion):
     return SO3(SO3.quaternion_to_rot_mat(quaternion))
   
+  @staticmethod
+  def eye():
+    return SO3(identity(3))
+
   def inv(self):
     return SO3(self._rot.transpose())
     
