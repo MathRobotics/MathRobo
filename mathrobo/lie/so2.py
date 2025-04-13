@@ -10,8 +10,9 @@ class SO2(LieAbstract):
     self._rot = r
     self._lib = LIB
 
-  def dof(self):
-    return self._dof
+  @staticmethod
+  def dof():
+    return 2
     
   def mat(self):
     return self._rot

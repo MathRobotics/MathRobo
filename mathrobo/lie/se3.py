@@ -12,8 +12,9 @@ class SE3(LieAbstract):
     self._pos = pos
     self.lib = LIB
 
-  def dof(self):
-    return self._dof
+  @staticmethod
+  def dof():
+    return 6
   
   def mat(self):
     mat = identity(4)
