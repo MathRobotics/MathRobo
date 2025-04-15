@@ -70,6 +70,12 @@ class CMTM(Generic[T]):
         return self._vecs
       else:
         return self._vecs[i]
+      
+  def inv(self):
+    vecs = np.zeros_like(self._vecs)
+    for i in range(self._vecs.shape[0]):
+      vecs[i] = self._mat @ self._vecs[i]
+    return CMTM(self._mat.inv(), vecs)
 
   def __mat_inv_elem(self, p):
     if p == 0:
