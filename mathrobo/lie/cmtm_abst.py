@@ -113,6 +113,25 @@ class CMTM(Generic[T]):
           mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_inv_adj_elem(abs(i-j))
     return mat
   
+  @staticmethod
+  def __hat_func(hat, vecs):
+    n = vecs.shape[0]
+    m = hat(vecs[0]).shape[0]
+    mat = np.zeros((m*n,m*n))
+    for i in range(n):
+      tmp = hat(vecs[i])
+      for j in range(n-i):
+        mat[m*i+m*j:m*(i+1)+m*j,m*j:m*(j+1)] = tmp
+    return mat
+  
+  @staticmethod
+  def hat(T, vecs):
+    return CMTM.__hat_func(T.hat, vecs)
+
+  @staticmethod
+  def hat_adj(T, vecs):
+    return CMTM.__hat_func(T.hat_adj, vecs)
+  
   def __tan_mat_elem(self, p):
     if p == 0:
       return identity( self._mat_size ) 
