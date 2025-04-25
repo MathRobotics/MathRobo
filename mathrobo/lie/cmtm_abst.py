@@ -206,7 +206,35 @@ class CMTM(Generic[T]):
         if i > j :
           mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self._mat.hat_adj(self._vecs[abs(i-j-1)])
     return mat
+
+  @staticmethod
+  def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
+
+    dof = lval._mat._dof
+    vec = np.zeros((lval._n * dof))
+    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+    for i in range(lval._n-1):
+      vec[dof*(i+1):dof*(i+2)] = rval._vecs[i] - lval._vecs[i]
   
+    return vec
+
+  def sub_tan_vec(lval, rval, type = 'bframe') -> np.ndarray:
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
+
+    if type == 'bframe':
+      vec = lval.mat_inv() @ (rval.mat() - lval.mat())
+    elif type == 'fframe':
+      vec = (rval.mat() - lval.mat()) @ lval.mat_inv()
+    
+    return vec
+
   def __matmul__(self, rval):
     if isinstance(rval, CMTM):
       if self._n == rval._n:
