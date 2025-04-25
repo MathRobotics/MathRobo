@@ -84,6 +84,11 @@ class SO3(LieAbstract):
     return SO3(SO3.quaternion_to_mat(quaternion))
   
   @staticmethod
+  def mat_to_quaternion(mat):
+    m = SO3(mat)
+    return m.quaternion()
+  
+  @staticmethod
   def eye():
     return SO3(identity(3))
 
