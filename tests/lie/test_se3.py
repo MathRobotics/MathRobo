@@ -7,18 +7,14 @@ import mathrobo as mr
 
 def test_se3():
   res = mr.SE3()
-  e = np.identity(4)
 
-  np.testing.assert_array_equal(res.mat(), e)
+  np.testing.assert_array_equal(res.mat(), np.identity(4))
   
 def test_se3_inv():
   h = mr.SE3.rand()
+  res = h @ h.inv()
   
-  res = h.mat() @ h.inv()
-  
-  e = np.identity(4)
-  
-  np.testing.assert_allclose(res, e, rtol=1e-15, atol=1e-15)
+  np.testing.assert_allclose(res.mat(), np.identity(4), rtol=1e-15, atol=1e-15)
   
 def test_se3_adj():
   v = np.random.rand(6)
@@ -44,7 +40,7 @@ def test_se3_set_adj():
 def test_se3_inv_adj():
   h = mr.SE3.rand()
   
-  res = h.mat_adj() @ h.inv_adj()
+  res = h.mat_adj() @ h.mat_inv_adj()
   
   np.testing.assert_allclose(res, np.eye(6), rtol=1e-15, atol=1e-15)
 

@@ -10,8 +10,9 @@ class SO2(LieAbstract):
     self._rot = r
     self._lib = LIB
 
-  def dof(self):
-    return self._dof
+  @staticmethod
+  def dof():
+    return 2
     
   def mat(self):
     return self._rot
@@ -36,6 +37,10 @@ class SO2(LieAbstract):
   def set_quaternion(quaternion):
     return SO2(SO2.angle_to_rot_mat(quaternion))
     
+  @staticmethod
+  def eye():
+    return SO2(identity(2))
+
   def inv(self):
     return self._rot.transpose()
 

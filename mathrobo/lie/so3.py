@@ -10,8 +10,9 @@ class SO3(LieAbstract):
     self._rot = r
     self._lib = LIB
 
-  def dof(self):
-    return self._dof
+  @staticmethod
+  def dof():
+    return 3
     
   def mat(self):
     return self._rot
@@ -67,7 +68,7 @@ class SO3(LieAbstract):
     return q  # [w, x, y, z]
     
   @staticmethod
-  def quaternion_to_rot_mat(quaternion):
+  def quaternion_to_mat(quaternion):
     w, x, y, z = quaternion
 
     m = np.array([
@@ -80,9 +81,21 @@ class SO3(LieAbstract):
 
   @staticmethod
   def set_quaternion(quaternion):
-    return SO3(SO3.quaternion_to_rot_mat(quaternion))
-    
+    return SO3(SO3.quaternion_to_mat(quaternion))
+  
+  @staticmethod
+  def mat_to_quaternion(mat):
+    m = SO3(mat)
+    return m.quaternion()
+  
+  @staticmethod
+  def eye():
+    return SO3(identity(3))
+
   def inv(self):
+    return SO3(self._rot.transpose())
+    
+  def mat_inv(self):
     return self._rot.transpose()
 
   def mat_adj(self):
@@ -92,7 +105,7 @@ class SO3(LieAbstract):
   def set_mat_adj(mat = identity(3)):
     return SO3(mat)
 
-  def inv_adj(self):
+  def mat_inv_adj(self):
     return self._rot.transpose()
 
   @staticmethod

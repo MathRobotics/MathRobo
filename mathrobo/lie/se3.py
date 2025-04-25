@@ -12,8 +12,9 @@ class SE3(LieAbstract):
     self._pos = pos
     self.lib = LIB
 
-  def dof(self):
-    return self._dof
+  @staticmethod
+  def dof():
+    return 6
   
   def mat(self):
     mat = identity(4)
@@ -27,7 +28,7 @@ class SE3(LieAbstract):
   
   @staticmethod
   def set_pos_quaternion(pos, quaternion):
-    return SE3(SO3.quaternion_to_rot_mat(quaternion), pos)
+    return SE3(SO3.quaternion_to_mat(quaternion), pos)
 
   def pos(self):
     return self._pos
@@ -37,8 +38,15 @@ class SE3(LieAbstract):
   
   def pos_quaternion(self):
     return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
-    
+
+  @staticmethod
+  def eye():
+    return SE3(identity(3), zeros(3)) 
+
   def inv(self):
+    return SE3(self._rot.transpose(), -self._rot.transpose() @ self._pos)
+
+  def mat_inv(self):
     mat = identity(4, self.lib)
     mat[0:3,0:3] = self._rot.transpose()
     mat[0:3,3] = -self._rot.transpose() @ self._pos
@@ -60,7 +68,7 @@ class SE3(LieAbstract):
     
     return SE3(rot, pos)
 
-  def inv_adj(self):
+  def mat_inv_adj(self):
     mat = zeros((6,6), self.lib)
     
     mat[0:3,0:3] = self._rot.transpose()
