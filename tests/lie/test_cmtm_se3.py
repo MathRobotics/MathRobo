@@ -236,6 +236,18 @@ def test_cmtm_se3_tan_inv_adj():
 
     np.testing.assert_allclose(res.tan_mat_adj() @ res.tan_mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
     
+def test_cmtm_se3_sub_vec():
+  mat1 = mr.CMTM.rand(mr.SE3)
+  mat2 = mr.CMTM.rand(mr.SE3)
+
+  res = mr.CMTM.sub_vec(mat1, mat2, "bframe")
+  sol = np.zeros(18)
+  sol[ 0: 6] = mr.SE3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
+  sol[ 6:12] = mat2._vecs[0] - mat1._vecs[0]
+  sol[12:18] = mat2._vecs[1] - mat1._vecs[1]
+
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15) 
+
 def test_cmtm_se3_matmul():
   se3 = mr.SE3.rand()
   vel = np.random.rand(2,6)
