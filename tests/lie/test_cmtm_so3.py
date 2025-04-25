@@ -100,6 +100,42 @@ def test_cmtm_so3_inv_adj():
     mat = np.eye(3*(i+1))
 
     np.testing.assert_allclose(res.mat_adj() @ res.mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_so3_hat():
+  vec = np.random.rand(1,3)
+
+  res = mr.CMTM.hat(mr.SO3, vec)
+  mat = mr.SO3.hat(vec[0])
+
+  np.testing.assert_array_equal(res, mat)
+
+def test_cmtm_so3_hat2():
+  vec = np.random.rand(2,3)
+
+  res = mr.CMTM.hat(mr.SO3, vec)
+  mat = np.zeros((6,6))
+  mat[0:3,0:3] = mat[3:6,3:6] = mr.SO3.hat(vec[0])
+  mat[3:6,0:3] = mr.SO3.hat(vec[1])  
+
+  np.testing.assert_array_equal(res, mat)
+
+def test_cmtm_so3_hat_adj():
+  vec = np.random.rand(1,3)
+
+  res = mr.CMTM.hat_adj(mr.SO3, vec)
+  mat = mr.SO3.hat_adj(vec[0])
+
+  np.testing.assert_array_equal(res, mat)
+
+def test_cmtm_so3_hat_adj_2():
+  vec = np.random.rand(2,3)
+
+  res = mr.CMTM.hat_adj(mr.SO3, vec)
+  mat = np.zeros((6,6))
+  mat[0:3,0:3] = mat[3:6,3:6] = mr.SO3.hat_adj(vec[0])
+  mat[3:6,0:3] = mr.SO3.hat_adj(vec[1])  
+
+  np.testing.assert_array_equal(res, mat)
     
 def test_cmtm_so3_tan_mat():
   so3 = mr.SO3.rand()
