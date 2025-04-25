@@ -54,12 +54,12 @@ class CMTM(Generic[T]):
     return mat
   
   @staticmethod
-  def eye(T):
-    return CMTM(T.eye(), np.zeros((2,T.dof())))
+  def eye(T, order = 2):
+    return CMTM(T.eye(), np.zeros((order,T.dof())))
   
   @staticmethod
-  def rand(T):
-    return CMTM(T.rand(), np.random.rand(2,T.dof()))  
+  def rand(T, order = 2):
+    return CMTM(T.rand(), np.random.rand(order,T.dof()))  
   
   def elem_mat(self):
     return self._mat.mat()
