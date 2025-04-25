@@ -68,7 +68,7 @@ class SO3(LieAbstract):
     return q  # [w, x, y, z]
     
   @staticmethod
-  def quaternion_to_rot_mat(quaternion):
+  def quaternion_to_mat(quaternion):
     w, x, y, z = quaternion
 
     m = np.array([
