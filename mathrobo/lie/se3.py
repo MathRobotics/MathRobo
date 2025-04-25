@@ -335,6 +335,18 @@ class SE3(LieAbstract):
     mat[3:6,3:6] = r
 
     return mat
+
+  @staticmethod
+  def sub_tan_vec(val0, val1, type = 'bframe') -> np.ndarray:
+    vec = np.zeros(6)
+
+    vec[:3] = SO3.sub_tan_vec(SO3(val0.rot()), SO3(val1.rot()), type)
+    if type == 'bframe':
+      vec[3:] = val0.rot().transpose() @ (val1.pos() - val0.pos())
+    elif type == 'fframe':
+      tmp = (val1.rot() - val0.rot()) @ val0.rot().transpose()
+      vec[3:] = (val1.pos() - val0.pos()) - tmp @ val0.pos()
+    return vec
   
   def __matmul__(self, rval):
     if isinstance(rval, SE3):

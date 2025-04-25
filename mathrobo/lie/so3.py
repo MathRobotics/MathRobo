@@ -284,6 +284,14 @@ class SO3(LieAbstract):
   def exp_integ_adj(vec, a, LIB = 'numpy'):
     return SO3.exp_integ(vec, a, LIB)
 
+  @staticmethod
+  def sub_tan_vec(val0, val1, type = 'bframe'):
+    if type == 'bframe':
+      vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot))
+    elif type == 'fframe':
+      vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv())
+    return vec
+
   def __matmul__(self, rval):
     if isinstance(rval, SO3):
       return SO3(self._rot @ rval._rot)
