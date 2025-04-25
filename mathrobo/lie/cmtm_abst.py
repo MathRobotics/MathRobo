@@ -131,6 +131,31 @@ class CMTM(Generic[T]):
   @staticmethod
   def hat_adj(T, vecs):
     return CMTM.__hat_func(T.hat_adj, vecs)
+
+  @staticmethod
+  def __vee_func(dof, vee, mat):
+    '''
+    dof : dof of lie group
+    vee : vee function
+    '''
+    n = vee(np.zeros((dof,dof))).shape[0]
+    m = int(mat.shape[0] / n)
+    vecs = np.zeros((m,n))
+    for i in range(m):
+      tmp = np.zeros(n)
+      for j in range(m-i):
+        tmp += vee( mat[(j+i)*n:(j+i+1)*n, j*n:(j+1)*n] )
+        print(tmp)
+      vecs[i] = tmp / (m-i)
+    return vecs
+
+  @staticmethod
+  def vee(T, hat_mat):
+    return CMTM.__vee_func(T.dof(), T.vee, hat_mat)
+  
+  @staticmethod
+  def vee_adj(T, hat_mat):
+    return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)
   
   def __tan_mat_elem(self, p):
     if p == 0:
