@@ -74,7 +74,7 @@ class CMTM(Generic[T]):
   def inv(self):
     vecs = np.zeros_like(self._vecs)
     for i in range(self._vecs.shape[0]):
-      vecs[i] = self._mat @ self._vecs[i]
+      vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
     return CMTM(self._mat.inv(), vecs)
 
   def __mat_inv_elem(self, p):
@@ -145,7 +145,6 @@ class CMTM(Generic[T]):
       tmp = np.zeros(n)
       for j in range(m-i):
         tmp += vee( mat[(j+i)*n:(j+i+1)*n, j*n:(j+1)*n] )
-        print(tmp)
       vecs[i] = tmp / (m-i)
     return vecs
 
