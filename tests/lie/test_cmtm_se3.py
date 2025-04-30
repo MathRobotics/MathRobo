@@ -256,8 +256,8 @@ def test_cmtm_se3_sub_vec():
   res = mr.CMTM.sub_vec(mat1, mat2, "bframe")
   sol = np.zeros(18)
   sol[ 0: 6] = mr.SE3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
-  sol[ 6:12] = mat2._vecs[0] - mat1._vecs[0]
-  sol[12:18] = mat2._vecs[1] - mat1._vecs[1]
+  sol[ 6:12] = (mat2._vecs[0] - mat1._vecs[0]) + mr.SE3.hat_adj(sol[0:6]) @ mat1._vecs[0]
+  sol[12:18] = mat2._vecs[1] - mat1._vecs[1] + mr.SE3.hat_adj(sol[0:6]) @ mat1._vecs[1] + mr.SE3.hat_adj(sol[6:12]) @ mat1._vecs[0]
 
   np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15) 
 

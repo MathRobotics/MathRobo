@@ -220,7 +220,25 @@ class CMTM(Generic[T]):
       vec[dof*(i+1):dof*(i+2)] = rval._vecs[i] - lval._vecs[i]
   
     return vec
+  
+  @staticmethod
+  def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
 
+    dof = lval._mat._dof
+    vec = np.zeros((lval._n * dof))
+    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+    for i in range(lval._n-1):
+      vec[dof*(i+1):dof*(i+2)] = (rval._vecs[i] - lval._vecs[i])
+      for j in range(i+1):
+        vec[dof*(i+1):dof*(i+2)] += lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j]
+  
+    return vec
+
+  @staticmethod
   def sub_tan_vec(lval, rval, type = 'bframe') -> np.ndarray:
     if lval._n != rval._n:
       raise TypeError("Left operand should be same order in right operand")
