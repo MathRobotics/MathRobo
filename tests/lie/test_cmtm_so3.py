@@ -76,7 +76,7 @@ def test_cmtm_so3_getter():
   np.testing.assert_array_equal(res.elem_mat(), so3.mat())
   np.testing.assert_array_equal(res.elem_vecs(0), vec[0])
   np.testing.assert_array_equal(res.elem_vecs(1), vec[1])
-  
+
 def test_cmtm_so3_inv():
   so3 = mr.SO3.rand()
   
@@ -84,10 +84,24 @@ def test_cmtm_so3_inv():
     vel = np.random.rand(i,3)
 
     res = mr.CMTM[mr.SO3](so3, vel)
-    
-    mat = np.eye(3*(i+1))
 
-    np.testing.assert_allclose(res.mat() @ res.mat_inv(), mat, rtol=1e-15, atol=1e-15)
+    expected_mat = np.eye(3*(i+1))
+    result_mat = res @ res.inv()
+
+    np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-15, atol=1e-15)
+  
+def test_cmtm_so3_mat_inv():
+  so3 = mr.SO3.rand()
+  
+  for i in range(3):
+    vel = np.random.rand(i,3)
+
+    res = mr.CMTM[mr.SO3](so3, vel)
+    
+    expected_mat = np.eye(3*(i+1))
+    result_mat = res.mat() @ res.mat_inv()
+
+    np.testing.assert_allclose(result_mat, expected_mat, rtol=1e-15, atol=1e-15)
     
 def test_cmtm_so3_inv_adj():
   so3 = mr.SO3.rand() 

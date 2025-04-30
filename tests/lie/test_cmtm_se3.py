@@ -76,8 +76,21 @@ def test_cmtm_se3_getter():
   np.testing.assert_array_equal(res.elem_mat(), se3.mat())
   np.testing.assert_array_equal(res.elem_vecs(0), vec[0])
   np.testing.assert_array_equal(res.elem_vecs(1), vec[1])
+
+def test_cmtm_so3_inv():
+  se3 = mr.SE3.rand()
   
-def test_cmtm_se3_inv():
+  for i in range(3):
+    vel = np.random.rand(i,6)
+
+    res = mr.CMTM[mr.SE3](se3, vel)
+
+    expected_mat = np.eye(4*(i+1))
+    result_mat = res @ res.inv()
+    
+    np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-15, atol=1e-15)
+  
+def test_cmtm_se3_mat_inv():
   se3 = mr.SE3.rand()  
 
   for i in range(2):
