@@ -207,7 +207,31 @@ class CMTM(Generic[T]):
     return mat
 
   @staticmethod
-  def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+  def ptan_to_tan(dof, order):
+    '''
+    Convert matrix the pseudo tangent vector to tangent vector.
+    '''
+    k = 1
+    mat = np.zeros((dof*order, dof*order))
+    for i in range(order):
+      mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) / k
+      k = k * (i + 1)
+    return mat
+
+  @staticmethod
+  def tan_to_ptan(dof, order):
+    '''
+    Convert the tangent vector to pseudo tangent vector.
+    '''
+    k = 1
+    mat = np.zeros((dof*order, dof*order))
+    for i in range(order):
+      mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * k
+      k = k * (i + 1)
+    return mat
+
+  @staticmethod
+  def sub_vec_(lval, rval, type = 'bframe') -> np.ndarray: 
     if lval._n != rval._n:
       raise TypeError("Left operand should be same order in right operand")
     if lval._dof != rval._dof:
@@ -222,7 +246,10 @@ class CMTM(Generic[T]):
     return vec
   
   @staticmethod
-  def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+  def sub_ptan_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    '''
+    Subtract the psuedu tangent vector of two CMTM objects.
+    '''
     if lval._n != rval._n:
       raise TypeError("Left operand should be same order in right operand")
     if lval._dof != rval._dof:
@@ -234,8 +261,8 @@ class CMTM(Generic[T]):
     for i in range(lval._n-1):
       vec[dof*(i+1):dof*(i+2)] = (rval._vecs[i] - lval._vecs[i])
       for j in range(i+1):
-        vec[dof*(i+1):dof*(i+2)] += lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j]
-  
+        vec[dof*(i+1):dof*(i+2)] += (lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j])
+
     return vec
 
   @staticmethod
