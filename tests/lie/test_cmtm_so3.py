@@ -76,7 +76,7 @@ def test_cmtm_so3_getter():
   np.testing.assert_array_equal(res.elem_mat(), so3.mat())
   np.testing.assert_array_equal(res.elem_vecs(0), vec[0])
   np.testing.assert_array_equal(res.elem_vecs(1), vec[1])
-  
+
 def test_cmtm_so3_inv():
   so3 = mr.SO3.rand()
   
@@ -84,10 +84,24 @@ def test_cmtm_so3_inv():
     vel = np.random.rand(i,3)
 
     res = mr.CMTM[mr.SO3](so3, vel)
-    
-    mat = np.eye(3*(i+1))
 
-    np.testing.assert_allclose(res.mat() @ res.mat_inv(), mat, rtol=1e-15, atol=1e-15)
+    expected_mat = np.eye(3*(i+1))
+    result_mat = res @ res.inv()
+
+    np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-15, atol=1e-15)
+  
+def test_cmtm_so3_mat_inv():
+  so3 = mr.SO3.rand()
+  
+  for i in range(3):
+    vel = np.random.rand(i,3)
+
+    res = mr.CMTM[mr.SO3](so3, vel)
+    
+    expected_mat = np.eye(3*(i+1))
+    result_mat = res.mat() @ res.mat_inv()
+
+    np.testing.assert_allclose(result_mat, expected_mat, rtol=1e-15, atol=1e-15)
     
 def test_cmtm_so3_inv_adj():
   so3 = mr.SO3.rand() 
@@ -221,26 +235,40 @@ def test_cmtm_so3_tan_inv_adj():
 
     np.testing.assert_allclose(res.tan_mat_adj() @ res.tan_mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
 
+def test_cmtm_so3_sub_ptan_vec():
+  mat1 = mr.CMTM.rand(mr.SO3)
+  mat2 = mr.CMTM.rand(mr.SO3)
+
+  res = mr.CMTM.sub_ptan_vec(mat1, mat2, "bframe")
+  sol = np.zeros(9)
+  sol[0:3] = mr.SO3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
+  sol[3:6] = (mat2._vecs[0] - mat1._vecs[0]) + mr.SO3.hat_adj(sol[0:3]) @ mat1._vecs[0]
+  sol[6:9] = (mat2._vecs[1] - mat1._vecs[1] + mr.SO3.hat_adj(sol[0:3]) @ mat1._vecs[1] + mr.SO3.hat_adj(sol[3:6]) @ mat1._vecs[0])
+
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15) 
+
 def test_cmtm_so3_matmul():
-  so3 = mr.SO3.rand()
-  vel = np.random.rand(2,3)
-  
-  res1 = mr.CMTM[mr.SO3](so3, vel)
-  res2 = mr.CMTM.eye(mr.SO3)
-  
-  mat1 = res1.mat() @ res2.mat()
-  mat2 = mr.CMTM[mr.SO3](so3, vel).mat()
-  
-  np.testing.assert_allclose(mat1, mat2, rtol=1e-15, atol=1e-15)
+  m1 = mr.CMTM.rand(mr.SO3, 3)
+  m2 = mr.CMTM.rand(mr.SO3, 3)
+
+  result = m1 @ m2
+
+  expected_frame = m1.elem_mat() @ m2.elem_mat()
+  expected_veloc = m2._mat.mat_inv_adj() @ m1.elem_vecs(0) + m2.elem_vecs(0)
+  expected_accel = \
+    m2._mat.mat_inv_adj() @ m1.elem_vecs(1) +\
+    mr.SO3.hat_adj( m2._mat.mat_inv_adj() @ m1.elem_vecs(0) ) @ m2.elem_vecs(0) +\
+    m2.elem_vecs(1)
+    
+  assert np.allclose(result.elem_mat(), expected_frame)
+  assert np.allclose(result.elem_vecs(0), expected_veloc)
+  assert np.allclose(result.elem_vecs(1), expected_accel)
 
 def test_cmtm_so3_multiply():
-  so3 = mr.SO3.rand()
-  vel = np.random.rand(2,3)
-  
-  res1 = mr.CMTM[mr.SO3](so3, vel)
-  res2 = mr.CMTM.eye(mr.SO3)
-  
-  mat1 = res1 @ res2
-  mat2 = mr.CMTM[mr.SO3](so3, vel)
-  
-  np.testing.assert_allclose(mat1.mat(), mat2.mat(), rtol=1e-15, atol=1e-15)
+  m1 = mr.CMTM.rand(mr.SO3, 2)
+  m2 = mr.CMTM.rand(mr.SO3, 2)
+
+  expected_frame = m1 @ m2
+  result_mat = m1 @ m2.mat()
+
+  np.testing.assert_allclose(expected_frame.mat(), result_mat, rtol=1e-15, atol=1e-15)

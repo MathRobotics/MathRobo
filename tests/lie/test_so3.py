@@ -90,6 +90,21 @@ def test_so3_exp_integ2nd():
   mat, _ = integrate.quad_vec(integrad, 0, a)
   
   np.testing.assert_allclose(res, mat)
+
+def test_so3_sub_tan_vec():
+  
+  rot1 = mr.SO3.rand()
+  rot2 = mr.SO3.rand()
+  
+  res = mr.SO3.sub_tan_vec(rot1, rot2, "bframe")
+  sol = mr.SO3.vee(rot1.mat_inv() @ (rot2.mat() - rot1.mat()))
+  
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+  res = mr.SO3.sub_tan_vec(rot1, rot2, "fframe")
+  sol = mr.SO3.vee((rot2.mat() - rot1.mat()) @ rot1.mat_inv())
+  
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
   
 def test_so3_matmul():  
   r = mr.SO3.rand().mat()

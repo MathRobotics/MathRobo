@@ -74,7 +74,7 @@ class CMTM(Generic[T]):
   def inv(self):
     vecs = np.zeros_like(self._vecs)
     for i in range(self._vecs.shape[0]):
-      vecs[i] = self._mat @ self._vecs[i]
+      vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
     return CMTM(self._mat.inv(), vecs)
 
   def __mat_inv_elem(self, p):
@@ -131,6 +131,30 @@ class CMTM(Generic[T]):
   @staticmethod
   def hat_adj(T, vecs):
     return CMTM.__hat_func(T.hat_adj, vecs)
+
+  @staticmethod
+  def __vee_func(dof, vee, mat):
+    '''
+    dof : dof of lie group
+    vee : vee function
+    '''
+    n = vee(np.zeros((dof,dof))).shape[0]
+    m = int(mat.shape[0] / n)
+    vecs = np.zeros((m,n))
+    for i in range(m):
+      tmp = np.zeros(n)
+      for j in range(m-i):
+        tmp += vee( mat[(j+i)*n:(j+i+1)*n, j*n:(j+1)*n] )
+      vecs[i] = tmp / (m-i)
+    return vecs
+
+  @staticmethod
+  def vee(T, hat_mat):
+    return CMTM.__vee_func(T.dof(), T.vee, hat_mat)
+  
+  @staticmethod
+  def vee_adj(T, hat_mat):
+    return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)
   
   def __tan_mat_elem(self, p):
     if p == 0:
@@ -181,22 +205,98 @@ class CMTM(Generic[T]):
         if i > j :
           mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self._mat.hat_adj(self._vecs[abs(i-j-1)])
     return mat
+
+  @staticmethod
+  def ptan_to_tan(dof, order):
+    '''
+    Convert matrix the pseudo tangent vector to tangent vector.
+    '''
+    k = 1
+    mat = np.zeros((dof*order, dof*order))
+    for i in range(order):
+      mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) / k
+      k = k * (i + 1)
+    return mat
+
+  @staticmethod
+  def tan_to_ptan(dof, order):
+    '''
+    Convert the tangent vector to pseudo tangent vector.
+    '''
+    k = 1
+    mat = np.zeros((dof*order, dof*order))
+    for i in range(order):
+      mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * k
+      k = k * (i + 1)
+    return mat
+
+  @staticmethod
+  def sub_vec_(lval, rval, type = 'bframe') -> np.ndarray: 
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
+
+    dof = lval._mat._dof
+    vec = np.zeros((lval._n * dof))
+    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+    for i in range(lval._n-1):
+      vec[dof*(i+1):dof*(i+2)] = rval._vecs[i] - lval._vecs[i]
   
+    return vec
+  
+  @staticmethod
+  def sub_ptan_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    '''
+    Subtract the psuedu tangent vector of two CMTM objects.
+    '''
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
+
+    dof = lval._mat._dof
+    vec = np.zeros((lval._n * dof))
+    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+    for i in range(lval._n-1):
+      vec[dof*(i+1):dof*(i+2)] = (rval._vecs[i] - lval._vecs[i])
+      for j in range(i+1):
+        vec[dof*(i+1):dof*(i+2)] += (lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j])
+
+    return vec
+
+  @staticmethod
+  def sub_tan_vec(lval, rval, type = 'bframe') -> np.ndarray:
+    if lval._n != rval._n:
+      raise TypeError("Left operand should be same order in right operand")
+    if lval._dof != rval._dof:
+      raise TypeError("Left operand should be same dof in right operand")
+
+    if type == 'bframe':
+      vec = lval.mat_inv() @ (rval.mat() - lval.mat())
+    elif type == 'fframe':
+      vec = (rval.mat() - lval.mat()) @ lval.mat_inv()
+    
+    return vec
+
   def __matmul__(self, rval):
     if isinstance(rval, CMTM):
       if self._n == rval._n:
         m = self._mat @ rval._mat
         v = np.zeros((self._n-1,self._mat.dof()))
-        if self._n == 2:
+        if self._n > 1:
           v[0] = rval._mat.mat_inv_adj() @ self._vecs[0] + rval._vecs[0]
-        elif self._n == 3:
-          v[0] = rval._mat.mat_inv_adj() @ self._vecs[0] + rval._vecs[0]
-          v[1] = rval._mat.mat_inv_adj() @ self._vecs[1] + self._mat.hat_adj(rval._mat @ rval._vecs[0]) @ self._vecs[0] + rval._vecs[1]
-        else:
-          TypeError("Not supported n > 3")
+        if self._n > 2:
+          v[1] = rval._mat.mat_inv_adj() @ self._vecs[1] + self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[0] + rval._vecs[1]
         return CMTM(m, v)
       TypeError("Right operand should be same size in left operand")
     elif isinstance(rval, np.ndarray):
       return self.mat() @ rval
     else:
       TypeError("Right operand should be CMTM or numpy.ndarray")
+
+  def print(self):
+    print("mat")
+    print(self._mat.mat())
+    print("vecs")
+    print(self._vecs)

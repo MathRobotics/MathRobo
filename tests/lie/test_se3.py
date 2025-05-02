@@ -139,6 +139,21 @@ def test_se3_exp_integ_adj():
     
   np.testing.assert_allclose(res, m)
 
+def test_se3_sub_tan_vec():
+  
+  mat1 = mr.SE3.rand()
+  mat2 = mr.SE3.rand()
+  
+  res = mr.SE3.sub_tan_vec(mat1, mat2, "bframe")
+  sol = mr.SE3.vee(mat1.mat_inv() @ (mat2.mat() - mat1.mat()))
+  
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+  res = mr.SE3.sub_tan_vec(mat1, mat2, "fframe")
+  sol = mr.SE3.vee((mat2.mat() - mat1.mat()) @ mat1.mat_inv())
+  
+  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
 def test_se3_matmul():
   v = np.random.rand(6)
   v[0:3] = v[0:3] / np.linalg.norm(v[0:3])
