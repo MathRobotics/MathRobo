@@ -294,3 +294,9 @@ class CMTM(Generic[T]):
       return self.mat() @ rval
     else:
       TypeError("Right operand should be CMTM or numpy.ndarray")
+
+  def print(self):
+    print("mat")
+    print(self._mat.mat())
+    print("vecs")
+    print(self._vecs)
