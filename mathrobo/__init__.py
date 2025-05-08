@@ -4,5 +4,5 @@
 
 from .basic import *
 from .lie import *
-
+from .difference import *
 from .transformation import *
