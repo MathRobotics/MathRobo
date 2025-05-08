@@ -4,17 +4,25 @@
 
 import numpy as np
 
-def numerical_grad(x, func, eps=1e-8, method="central"):
+def numerical_grad(x, func, eps=1e-8, method="central", sub_func = None):
     x = np.asarray(x, dtype=float).flatten()
+    
     y0 = np.atleast_1d(func(x))
-    grad = np.zeros((y0.size, x.size))
+    if sub_func is not None:
+        dy = sub_func(y0, y0)
+        grad = np.zeros((dy.size, x.size))
+    else:
+        grad = np.zeros((y0.size, x.size))
 
     for i in range(x.size):
         x1 = x.copy()
         if method == "forward":
             x1[i] += eps
             y1 = np.atleast_1d(func(x1))
-            grad[:, i] = (y1 - y0) / eps
+            if sub_func is not None:
+                grad[:, i] = sub_func(y0, y1) / eps
+            else:
+                grad[:, i] = (y1 - y0) / eps
 
         elif method == "central":
             x1[i] += eps
@@ -22,7 +30,10 @@ def numerical_grad(x, func, eps=1e-8, method="central"):
             x2[i] -= eps
             y1 = np.atleast_1d(func(x1))
             y2 = np.atleast_1d(func(x2))
-            grad[:, i] = (y1 - y2) / (2 * eps)
+            if sub_func is not None:
+                grad[:, i] = sub_func(y0, y1) / (2 * eps)
+            else:
+                grad[:, i] = (y1 - y2) / (2 * eps)
 
         elif method == "fourth":
             # 4th-order central difference: f(x - 2h), f(x - h), f(x + h), f(x + 2h)
@@ -34,7 +45,12 @@ def numerical_grad(x, func, eps=1e-8, method="central"):
             f_m1h = np.atleast_1d(func(x_m1h))
             f_p1h = np.atleast_1d(func(x_p1h))
             f_p2h = np.atleast_1d(func(x_p2h))
-            grad[:, i] = (-f_p2h + 8*f_p1h - 8*f_m1h + f_m2h) / (12 * eps)
+            if sub_func is not None:
+                t1 = 8 * sub_func(f_p1h, f_m1h)   # Δ = f_m1h - f_p1h
+                t2 = sub_func(f_p2h, f_m2h)   # Δ = f_m2h - f_p2h
+                grad[:, i] = (t2 - t1) / (12 * eps)
+            else:
+                grad[:, i] = (-f_p2h + 8*f_p1h - 8*f_m1h + f_m2h) / (12 * eps)
 
         else:
             raise ValueError(f"Unsupported method: {method}")
