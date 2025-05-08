@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "mathrobo"
 version = "0.0.1"
 authors = [  
-  { name="taiki-ishigaki", email="taiki000ishigaki@gmail.com },
+  { name="taiki-ishigaki", email="taiki000ishigaki@gmail.com" },
 ]
 description = "basic mathematical library for robotics reserach"
 readme = "README.md"
@@ -20,4 +20,4 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Mathrobotics/MathRobo"
+Homepage = "https://github.com/MathRobotics/MathRobo"
