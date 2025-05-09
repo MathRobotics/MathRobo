@@ -156,24 +156,24 @@ class CMTM(Generic[T]):
   def vee_adj(T, hat_mat):
     return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)
   
-  def __tan_mat_elem(self, p):
+  def __ptan_mat_elem(self, p):
     if p == 0:
       return identity( self._mat_size ) 
     else:
       mat = zeros( (self._mat_size, self._mat_size) )
       for i in range(p):
-        mat = mat - self.__tan_mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i])
+        mat = mat - self.__ptan_mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i])
       return mat
   
-  def tan_mat(self):
+  def ptan_mat(self):
     mat = identity(self._mat_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i >= j :
-          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__tan_mat_elem(abs(i-j))
+          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__ptan_mat_elem(abs(i-j))
     return mat
       
-  def tan_mat_inv(self):
+  def ptan_mat_inv(self):
     mat = identity(self._mat_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
@@ -181,24 +181,24 @@ class CMTM(Generic[T]):
           mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self._mat.hat(self._vecs[abs(i-j-1)])
     return mat
   
-  def __tan_mat_adj_elem(self, p):
+  def __ptan_mat_adj_elem(self, p):
     if p == 0:
       return identity( self._mat_adj_size ) 
     else:
       mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
       for i in range(p):
-        mat = mat - self.__tan_mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+        mat = mat - self.__ptan_mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
       return mat
   
-  def tan_mat_adj(self):
+  def ptan_mat_adj(self):
     mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
         if i >= j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tan_mat_adj_elem(abs(i-j))
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__ptan_mat_adj_elem(abs(i-j))
     return mat
   
-  def tan_mat_inv_adj(self):
+  def ptan_mat_inv_adj(self):
     mat = identity(self._mat_adj_size * self._n)
     for i in range(self._n):
       for j in range(self._n):
@@ -229,6 +229,18 @@ class CMTM(Generic[T]):
       mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * k
       k = k * (i + 1)
     return mat
+
+  def tan_mat(self):
+    return self.ptan_to_tan(self._mat_size, self._n) @ self.ptan_mat()
+
+  def tan_mat_inv(self):
+    return self.ptan_mat_inv() @ self.tan_to_ptan(self._mat_size, self._n)
+
+  def tan_mat_adj(self):
+    return self.ptan_to_tan(self._mat_adj_size, self._n) @ self.ptan_mat_adj()
+
+  def tan_mat_inv_adj(self):
+    return self.ptan_mat_inv_adj() @ self.tan_to_ptan(self._mat_adj_size, self._n)
 
   @staticmethod
   def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
