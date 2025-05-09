@@ -176,8 +176,10 @@ def test_cmtm_so3_vec2d_tan_mat():
   res = mr.CMTM[mr.SO3](so3, vel)
   
   mat = np.eye(9)
+  mat[6:9, 6:9] *= 0.5
   mat[3:6, 0:3] = mat[6:9, 3:6] = - mr.SO3.hat(vel[0])
-  mat[6:9, 0:3] = - (mr.SO3.hat(vel[1]) - mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0])) 
+  mat[6:9, 3:6] *= 0.5
+  mat[6:9, 0:3] = - 0.5 * (mr.SO3.hat(vel[1]) - mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0])) 
 
   np.testing.assert_array_equal(res.tan_mat(), mat)
   
@@ -206,8 +208,10 @@ def test_cmtm_so3_vec2d_tan_mat_adj():
   res = mr.CMTM[mr.SO3](so3, vel)
   
   mat = np.eye(9)
+  mat[6:9, 6:9] *= 0.5
   mat[3:6, 0:3] = mat[6:9, 3:6] = - mr.SO3.hat_adj(vel[0])
-  mat[6:9, 0:3] = - (mr.SO3.hat_adj(vel[1]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0])) 
+  mat[6:9, 3:6] *= 0.5
+  mat[6:9, 0:3] = - 0.5 * (mr.SO3.hat_adj(vel[1]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0])) 
 
   np.testing.assert_array_equal(res.tan_mat_adj(), mat)
   
