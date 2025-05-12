@@ -105,7 +105,7 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, updat
 def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None, update_func=None):
     return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, direction=None)
 
-def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, update_func=None):
-    norm = np.linalg.norm(x)
-    direction = x / norm if norm != 0 else np.ones_like(x)
+def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, update_func=None, direction=None):
+    if direction is None:
+        direction = np.ones_like(x)
     return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, update_func=update_func, direction=direction)
