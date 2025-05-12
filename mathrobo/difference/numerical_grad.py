@@ -4,7 +4,7 @@
 
 import numpy as np
 
-def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, direction=None):
+def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, update_func = None, direction=None):
     """
     Unified finite difference backend to compute either:
     - full Jacobian (if direction is None)
@@ -41,29 +41,35 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, direc
     
     x_dim = x.size
 
-    def eval(offset, dircetion):
-        if sub_func is None:
-            return np.atleast_1d(func(x + offset * dircetion))
+    def update(x, dircetion, offset):
+        if update_func is None:
+            return x + offset*dircetion
         else:
-            return func(x + offset * dircetion)
+            return update_func(x, dircetion, offset)
 
-    def diff_eval(offset, dircetion):
+    def eval(dircetion, offset):
+        if sub_func is None:
+            return np.atleast_1d(func(update(x, dircetion, offset)))
+        else:
+            return func(update(x, dircetion, offset))
+
+    def diff_eval(dircetion, eps):
         if method == "forward":
-            y1 = eval(eps, dircetion)
+            y1 = eval(dircetion, eps)
             dy = sub_func(y0, y1) if sub_func else y1 - y0
             return dy / eps
 
         elif method == "central":
-            y1 = eval(-eps, dircetion)
-            y2 = eval(+eps, dircetion)
+            y1 = eval(dircetion, -eps)
+            y2 = eval(dircetion, +eps)
             dy = sub_func(y1, y2) if sub_func else y2 - y1
             return dy / (2 * eps)
 
         elif method == "fourth":
-            y_m2h = eval(-2 * eps, dircetion)
-            y_m1h = eval(-1 * eps, dircetion)
-            y_p1h = eval(+1 * eps, dircetion)
-            y_p2h = eval(+2 * eps, dircetion)
+            y_m2h = eval(dircetion, -2 * eps)
+            y_m1h = eval(dircetion, -1 * eps)
+            y_p1h = eval(dircetion, +1 * eps)
+            y_p2h = eval(dircetion, +2 * eps)
             if sub_func:
                 t1 = 8 * sub_func(y_m1h, y_p1h)
                 t2 = sub_func(y_m2h, y_p2h)
@@ -83,7 +89,7 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, direc
             raise ValueError("Direction vector must not be zero.")
         direction = direction / norm
 
-        return diff_eval(eps, direction)
+        return diff_eval(direction, eps)
     else:
         # Else: compute full Jacobian (each input dimension perturbed independently)
         grad = np.zeros((y_dim, x_dim))
@@ -92,16 +98,14 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, direc
             ei = np.zeros_like(x)
             ei[i] = 1.0
 
-            grad[:, i]  = diff_eval(eps, ei)
+            grad[:, i]  = diff_eval(ei, eps)
 
         return grad if y_dim > 1 else grad.flatten()
 
-def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None):
+def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None, update_func=None):
     return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, direction=None)
 
-def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, direction=None):
-    # Use x itself as direction if none is specified
-    if direction is None:
-        norm = np.linalg.norm(x)
-        direction = x / norm if norm != 0 else np.ones_like(x)
-    return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, direction=direction)
+def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, update_func=None):
+    norm = np.linalg.norm(x)
+    direction = x / norm if norm != 0 else np.ones_like(x)
+    return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, update_func=update_func, direction=direction)
