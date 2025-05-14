@@ -184,7 +184,123 @@ def test_cmtm_so3_hat_adj_2():
   mat[3:6,0:3] = mr.SO3.hat_adj(vec[1])  
 
   np.testing.assert_array_equal(res, mat)
+
+def test_cmtm_so3_ptan_map():
+  so3 = mr.SO3.rand()
+  
+  res = mr.CMTM[mr.SO3](so3)
+  
+  np.testing.assert_array_equal(res.ptan_map(), np.eye(3))
+
+def test_cmtm_so3_vec1d_ptan_map():
+  so3 = mr.SO3.rand()  
+  vel = np.random.rand(1,3)
+  
+  res = mr.CMTM[mr.SO3](so3, vel)
+  
+  mat = np.eye(6)
+  mat[3:6, 0:3] = - mr.SO3.hat(vel[0])
+  
+  np.testing.assert_array_equal(res.ptan_map(), mat)
+
+def test_cmtm_so3_vec2d_ptan_map():
+  so3 = mr.SO3.rand() 
+  vel = np.random.rand(2,3)
+  
+  res = mr.CMTM[mr.SO3](so3, vel)
+  
+  mat = np.eye(9)
+  mat[3:6, 0:3] = mat[6:9, 3:6] = - mr.SO3.hat(vel[0])
+  mat[6:9, 0:3] = - (mr.SO3.hat(vel[1]) - mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0])) 
+
+  np.testing.assert_array_equal(res.ptan_map(), mat)
+
+def test_cmtm_so3_vec3d_ptan_map():
+  so3 = mr.SO3.rand()
+  vel = np.random.rand(3,3)
+
+  res = mr.CMTM[mr.SO3](so3, vel)
+   
+  mat = np.eye(12)
+  mat[3:6, 0:3] = mat[6:9, 3:6] = mat[9:12, 6:9] = - mr.SO3.hat(vel[0])
+  mat[6:9, 0:3] = mat[9:12, 3:6] = - (mr.SO3.hat(vel[1]) - mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0])) 
+  mat[9:12, 0:3] = - (mr.SO3.hat(vel[2]) - mr.SO3.hat(vel[1]) @ mr.SO3.hat(vel[0]) - mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[1]) + mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0]) @ mr.SO3.hat(vel[0]))
+
+  np.testing.assert_allclose(res.ptan_map(), mat, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_so3_ptan_map_adj():
+  so3 = mr.SO3.rand()  
+  
+  res = mr.CMTM[mr.SO3](so3)
+  
+  np.testing.assert_array_equal(res.ptan_map_adj(), np.eye(3))
+
+def test_cmtm_so3_vec1d_ptan_map_adj():
+  so3 = mr.SO3.rand()  
+  vel = np.random.rand(1,3)
+  
+  res = mr.CMTM[mr.SO3](so3, vel)
+  
+  mat = np.eye(6)
+  mat[3:6, 0:3] = - mr.SO3.hat_adj(vel[0])
+  
+  np.testing.assert_array_equal(res.ptan_map_adj(), mat)
+
+def test_cmtm_so3_vec2d_ptan_map_adj():
+  so3 = mr.SO3.rand() 
+  vel = np.random.rand(2,3)
+  
+  res = mr.CMTM[mr.SO3](so3, vel)
+  
+  mat = np.eye(9)
+  mat[3:6, 0:3] = mat[6:9, 3:6] = - mr.SO3.hat_adj(vel[0])
+  mat[6:9, 0:3] = - (mr.SO3.hat_adj(vel[1]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0])) 
+
+  np.testing.assert_array_equal(res.ptan_map_adj(), mat)
+
+def test_cmtm_so3_vec3d_ptan_map_adj():
+  so3 = mr.SO3.rand() 
+  vel = np.random.rand(3,3)
+
+  res = mr.CMTM[mr.SO3](so3, vel)
+  
+  mat = np.eye(12)
+  mat[3:6, 0:3] = mat[6:9, 3:6] = mat[9:12, 6:9] = - mr.SO3.hat_adj(vel[0])
+  mat[6:9, 0:3] = mat[9:12, 3:6] = - (mr.SO3.hat_adj(vel[1]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0])) 
+  mat[9:12, 0:3] = - (mr.SO3.hat_adj(vel[2]) - mr.SO3.hat_adj(vel[1]) @ mr.SO3.hat_adj(vel[0]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[1]) + mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0]))
+
+  np.testing.assert_allclose(res.ptan_map_adj(), mat, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_so3_ptan_to_tan():
+  n = 5
+
+  for i in range(n):
+    so3 = mr.SO3.rand()
+    vel = np.random.rand(i,3)
+
+    res = mr.CMTM[mr.SO3](so3, vel)
     
+    mat = np.eye(3)
+
+    for j in range(i):
+      np.testing.assert_allclose(res.ptan_to_tan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
+      mat = mat / (j+1)
+
+def test_cmtm_so3_tan_to_ptan():
+  n = 5
+
+  for i in range(n):
+    so3 = mr.SO3.rand()
+    vel = np.random.rand(i,3)
+
+    res = mr.CMTM[mr.SO3](so3, vel)
+    
+    mat = np.eye(3)
+
+    for j in range(i):
+      np.testing.assert_allclose(res.tan_to_ptan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
+      mat = mat * (j+1)
+
 def test_cmtm_so3_tan_map():
   so3 = mr.SO3.rand()
   
