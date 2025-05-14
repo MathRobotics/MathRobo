@@ -102,19 +102,35 @@ def test_cmtm_se3_adj_vec3d():
   np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-15, atol=1e-15)
   
 def test_cmtm_se3_getter():
+  n = 5
+
   se3 = mr.SE3.rand()  
-  vec = np.random.rand(2,6)
+  vec = np.random.rand(n,6)
 
   res = mr.CMTM[mr.SE3](se3,vec)
   
   np.testing.assert_array_equal(res.elem_mat(), se3.mat())
-  np.testing.assert_array_equal(res.elem_vecs(0), vec[0])
-  np.testing.assert_array_equal(res.elem_vecs(1), vec[1])
+  for i in range(n):
+    np.testing.assert_array_equal(res.elem_vecs(i), vec[i])
+
+def test_cmtm_se3_set_mat():
+  n = 5
+
+  se3 = mr.SE3.rand() 
+  vec = np.random.rand(n,6)
+
+  cmtm = mr.CMTM[mr.SE3](se3,vec)
+
+  res = mr.CMTM.set_mat(mr.SE3, cmtm.mat())
+
+  np.testing.assert_allclose(res.elem_mat(), cmtm.elem_mat(), rtol=1e-15, atol=1e-15)
+  for i in range(n):
+    np.testing.assert_allclose(res.elem_vecs(i), cmtm.elem_vecs(i), rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_inv():
   se3 = mr.SE3.rand()
   
-  for i in range(3):
+  for i in range(5):
     vel = np.random.rand(i,6)
 
     res = mr.CMTM[mr.SE3](se3, vel)
@@ -446,10 +462,11 @@ def test_cmtm_se3_matmul():
   assert np.allclose(result.elem_vecs(1), expected_accel)
 
 def test_cmtm_se3_multiply():
-  m1 = mr.CMTM.rand(mr.SE3, 1)
-  m2 = mr.CMTM.rand(mr.SE3, 1)
+  m1 = mr.CMTM.rand(mr.SE3, 5)
+  m2 = mr.CMTM.rand(mr.SE3, 5)
 
-  expected_frame = m1 @ m2
-  result_mat = m1 @ m2.mat()
+  result_mat = m1 @ m2
 
-  np.testing.assert_allclose(expected_frame.mat(), result_mat, rtol=1e-15, atol=1e-15)
+  expected_mat = m1.mat() @ m2.mat()
+
+  np.testing.assert_allclose(expected_mat, result_mat.mat(), rtol=1e-15, atol=1e-15)

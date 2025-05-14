@@ -52,14 +52,38 @@ class CMTM(Generic[T]):
         if i >= j :
           mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_adj_elem(abs(i-j))
     return mat
+
+  @staticmethod
+  def set_mat(T, mat : np.ndarray):
+    size = T.eye().mat().shape[0]
+    if mat.shape[0] % size != 0:
+      raise TypeError("Matrix size is not same as element matrix")
+   
+    n = int(mat.shape[0] / size)
+
+    tmp = np.zeros((n, size, size))
+    for i in range(n):
+      for j in range(n-i):
+        tmp[i] += mat[(j+i)*size:(j+i+1)*size, j*size:(j+1)*size]
+      tmp[i] = tmp[i] / (n-i)
+      
+    m = T.set_mat(tmp[0])
+    vs = np.zeros((n-1, T.dof()))
+    for i in range(n-1):
+      m_tmp = np.zeros((size, size))
+      for j in range(i):
+        m_tmp += tmp[i-j] @ T.hat(vs[j])
+      vs[i] = T.vee( m.inv() @  ( tmp[i+1] * (i+1) - m_tmp) )
+
+    return CMTM(m, vs)
   
   @staticmethod
-  def eye(T, order = 2):
-    return CMTM(T.eye(), np.zeros((order,T.dof())))
+  def eye(T, order = 3):
+    return CMTM(T.eye(), np.zeros((order-1,T.dof())))
   
   @staticmethod
-  def rand(T, order = 2):
-    return CMTM(T.rand(), np.random.rand(order,T.dof()))  
+  def rand(T, order = 3):
+    return CMTM(T.rand(), np.random.rand(order-1,T.dof()))  
   
   def elem_mat(self):
     return self._mat.mat()
@@ -295,6 +319,8 @@ class CMTM(Generic[T]):
   def __matmul__(self, rval):
     if isinstance(rval, CMTM):
       if self._n == rval._n:
+        if self._n > 3:
+          return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat())
         m = self._mat @ rval._mat
         v = np.zeros((self._n-1,self._mat.dof()))
         if self._n > 1:
@@ -302,7 +328,8 @@ class CMTM(Generic[T]):
         if self._n > 2:
           v[1] = rval._mat.mat_inv_adj() @ self._vecs[1] + self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[0] + rval._vecs[1]
         return CMTM(m, v)
-      TypeError("Right operand should be same size in left operand")
+      else:
+        TypeError("Right operand should be same size in left operand")
     elif isinstance(rval, np.ndarray):
       return self.mat() @ rval
     else:
