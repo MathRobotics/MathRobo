@@ -470,3 +470,13 @@ def test_cmtm_se3_multiply():
   expected_mat = m1.mat() @ m2.mat()
 
   np.testing.assert_allclose(expected_mat, result_mat.mat(), rtol=1e-15, atol=1e-15)
+
+def test_cmtm_se3_multiply_adj():
+  m1 = mr.CMTM.rand(mr.SE3, 5)
+  m2 = mr.CMTM.rand(mr.SE3, 5)
+
+  result_mat = m1 @ m2
+
+  expected_mat = m1.mat_adj() @ m2.mat_adj()
+
+  np.testing.assert_allclose(expected_mat, result_mat.mat_adj(), rtol=1e-15, atol=1e-15)
