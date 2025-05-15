@@ -420,16 +420,20 @@ def test_cmtm_so3_tan_inv_adj():
     np.testing.assert_allclose(res.tan_map_adj() @ res.tan_map_inv_adj(), mat, rtol=1e-15, atol=1e-15)
 
 def test_cmtm_so3_sub_vec():
-  mat1 = mr.CMTM.rand(mr.SO3)
-  mat2 = mr.CMTM.rand(mr.SO3)
+  order = 5
 
-  res = mr.CMTM.sub_vec(mat1, mat2, "bframe")
-  sol = np.zeros(9)
-  sol[0:3] = mr.SO3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
-  sol[3:6] = mat2._vecs[0] - mat1._vecs[0]
-  sol[6:9] = mat2._vecs[1] - mat1._vecs[1]
+  for i in range(order):
+    mat1 = mr.CMTM.rand(mr.SO3, i+1)
+    mat2 = mr.CMTM.rand(mr.SO3, i+1)
 
-  np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+    res = mr.CMTM.sub_vec(mat1, mat2, "bframe")
+    sol = np.zeros(3*(i+1))
+    sol[0:3] = mr.SO3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
+    if i > 0: 
+      for j in range(i):
+        sol[3*(j+1):3*(j+2)] = mat2._vecs[j] - mat1._vecs[j]
+    
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
 
 def test_cmtm_so3_sub_ptan_vec():
   mat1 = mr.CMTM.rand(mr.SO3)
