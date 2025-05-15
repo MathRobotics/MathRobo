@@ -97,9 +97,13 @@ class CMTM(Generic[T]):
       
   def inv(self):
     vecs = np.zeros_like(self._vecs)
-    for i in range(self._vecs.shape[0]):
-      vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
-    return CMTM(self._mat.inv(), vecs)
+    if self._n < 4:
+      for i in range(self._n-1):
+        vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
+      return CMTM(self._mat.inv(), vecs)
+    else:
+      # tentative implementation
+      return CMTM.set_mat(type(self._mat), self.mat_inv())
 
   def __mat_inv_elem(self, p):
     if p == 0:
