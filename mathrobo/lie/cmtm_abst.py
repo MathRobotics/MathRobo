@@ -324,6 +324,7 @@ class CMTM(Generic[T]):
     if isinstance(rval, CMTM):
       if self._n == rval._n:
         if self._n > 3:
+          # tentative implementation
           return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat())
         m = self._mat @ rval._mat
         v = np.zeros((self._n-1,self._mat.dof()))
