@@ -117,49 +117,29 @@ class CMTM(Generic[T]):
   
   def ptan_vecs(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    if 0:
-      # tentative implementation (we can omit total matrix multiplication)
-      v = self.ptan_map_adj(output_order-1) @ self._vecs[:output_order-1].flatten()
-      return v.reshape((output_order-1, self._dof))
-    else:
-      v = np.zeros((output_order-1, self._dof))
-      for i in range(output_order-1):
-        v[i] = self._vecs[i]
-        for j in range(i):
-          v[i] += self._mat.hat_adj(self._vecs[j]) @ self._vecs[i-j-1]
-      return v
+    v = np.zeros((output_order-1, self._dof))
+    for i in range(output_order-1):
+      v[i] = self._vecs[i]
+      for j in range(i):
+        v[i] += self._mat.hat_adj(self._vecs[j]) @ self._vecs[i-j-1]
+    return v
   
   def ptan_vecs_flatten(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    if 0:
-      # tentative implementation (we can omit total matrix multiplication)
-      v = self.ptan_map_adj(output_order-1) @ self._vecs[:output_order-1].flatten()
-      return v.flatten()
-    else:
-      return self.ptan_vecs(output_order).flatten()
+    return self.ptan_vecs(output_order).flatten()
     
   def tan_vecs(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    if 0:
-      # tentative implementation (we can omit total matrix multiplication)
-      v = self.tan_map_adj(output_order-1) @ self._vecs[:output_order-1].flatten()
-      return v.reshape((output_order-1, self._dof))
-    else:
-      v = self.ptan_vecs(output_order)
-      p = 1
-      for i in range(output_order-1):
-        v[i] = v[i] / p
-        p = p * (i + 1)
-      return v
+    v = self.ptan_vecs(output_order)
+    p = 1
+    for i in range(output_order-1):
+      v[i] = v[i] / p
+      p = p * (i + 1)
+    return v
   
   def tan_vecs_flatten(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    if 0:
-      # tentative implementation (we can omit total matrix multiplication)
-      v = self.tan_map_adj(output_order-1) @ self._vecs[:output_order-1].flatten()
-      return v.flatten()
-    else:
-      return self.tan_vecs(output_order).flatten()
+    return self.tan_vecs(output_order).flatten()
       
   def inv(self):
     vecs = np.zeros_like(self._vecs)
