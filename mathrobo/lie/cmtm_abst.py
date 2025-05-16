@@ -17,7 +17,7 @@ class CMTM(Generic[T]):
     self._n = elem_vecs.shape[0] + 1
     self.lib = LIB
 
-  def __check_output_order(self, output_order):
+  def __check_output_order(self, output_order : int):
     if output_order is None:
       output_order = self._n
     if output_order > self._n:
@@ -90,7 +90,7 @@ class CMTM(Generic[T]):
     return CMTM(m, vs)
   
   @staticmethod
-  def eye(T, output_order  = 3):
+  def eye(T, output_order = 3):
     return CMTM(T.eye(), np.zeros((output_order-1,T.dof())))
   
   @staticmethod
@@ -213,7 +213,7 @@ class CMTM(Generic[T]):
   def vee_adj(T, hat_mat):
     return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)
   
-  def __ptan_map_elem(self, p):
+  def __ptan_map_elem(self, p : int):
     if p == 0:
       return identity( self._mat_size ) 
     else:
@@ -241,7 +241,7 @@ class CMTM(Generic[T]):
           mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self._mat.hat(self._vecs[abs(i-j-1)])
     return mat
   
-  def __ptan_map_adj_elem(self, p):
+  def __ptan_map_adj_elem(self, p : int):
     if p == 0:
       return identity( self._mat_adj_size ) 
     else:
@@ -269,7 +269,7 @@ class CMTM(Generic[T]):
     return mat
 
   @staticmethod
-  def ptan_to_tan(dof, output_order):
+  def ptan_to_tan(dof, output_order : int):
     '''
     Convert matrix the pseudo tangent vector to tangent vector.
     '''
@@ -281,7 +281,7 @@ class CMTM(Generic[T]):
     return mat
 
   @staticmethod
-  def tan_to_ptan(dof, output_order):
+  def tan_to_ptan(dof, output_order : int):
     '''
     Convert the tangent vector to pseudo tangent vector.
     '''
