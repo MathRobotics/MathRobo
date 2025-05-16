@@ -24,7 +24,7 @@ class CMTM(Generic[T]):
       raise TypeError("Output order should be less than or equal to the order of CMTM")
     return output_order
     
-  def __mat_elem(self, p):
+  def __mat_elem(self, p : int):
     if p == 0:
       return self._mat.mat()
     else:
@@ -45,7 +45,7 @@ class CMTM(Generic[T]):
 
     return mat
   
-  def __mat_adj_elem(self, p):
+  def __mat_adj_elem(self, p : int):
     if p == 0:
       return self._mat.mat_adj()
     else:
@@ -90,12 +90,12 @@ class CMTM(Generic[T]):
     return CMTM(m, vs)
   
   @staticmethod
-  def eye(T, order = 3):
-    return CMTM(T.eye(), np.zeros((order-1,T.dof())))
+  def eye(T, output_order  = 3):
+    return CMTM(T.eye(), np.zeros((output_order-1,T.dof())))
   
   @staticmethod
-  def rand(T, order = 3):
-    return CMTM(T.rand(), np.random.rand(order-1,T.dof()))  
+  def rand(T, output_order = 3):
+    return CMTM(T.rand(), np.random.rand(output_order-1,T.dof()))  
   
   def elem_mat(self):
     return self._mat.mat()
