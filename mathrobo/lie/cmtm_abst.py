@@ -252,55 +252,27 @@ class CMTM(Generic[T]):
   
   @staticmethod
   def vee_adj(T, hat_mat):
-    return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)
-  
-  def __ptan_map_elem(self, p : int):
-    if p == 0:
-      return identity( self._mat_size ) 
-    else:
-      mat = zeros( (self._mat_size, self._mat_size) )
-      for i in range(p):
-        mat = mat - self.__ptan_map_elem(p-(i+1)) @ self._mat.hat(self._vecs[i])
-      return mat
-  
-  def ptan_map(self, output_order = None):
-    output_order = self.__check_output_order(output_order)
+    return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)  
 
-    mat = identity(self._mat_size * output_order)
-    for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__ptan_map_elem(abs(i-j))
-    return mat
-      
-  def ptan_map_inv(self, output_order = None):
-    output_order = self.__check_output_order(output_order)
-    mat = identity(self._mat_size * output_order)
-    for i in range(output_order):
-      for j in range(output_order):
-        if i > j :
-          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self._mat.hat(self._vecs[abs(i-j-1)])
-    return mat
-  
-  def __ptan_map_adj_elem(self, p : int):
+  def __ptan_map_elem(self, p : int):
     if p == 0:
       return identity( self._mat_adj_size ) 
     else:
       mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
       for i in range(p):
-        mat = mat - self.__ptan_map_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+        mat = mat - self.__ptan_map_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
       return mat
   
-  def ptan_map_adj(self, output_order = None):
+  def ptan_map(self, output_order = None):
     output_order = self.__check_output_order(output_order)
     mat = identity(self._mat_adj_size * output_order)
     for i in range(output_order):
       for j in range(output_order):
         if i >= j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__ptan_map_adj_elem(abs(i-j))
+          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__ptan_map_elem(abs(i-j))
     return mat
   
-  def ptan_map_inv_adj(self, output_order = None):
+  def ptan_map_inv(self, output_order = None):
     output_order = self.__check_output_order(output_order)
     mat = identity(self._mat_adj_size * output_order)
     for i in range(output_order):
@@ -335,19 +307,11 @@ class CMTM(Generic[T]):
 
   def tan_map(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    return self.ptan_to_tan(self._mat_size, output_order) @ self.ptan_map(output_order)
+    return self.ptan_to_tan(self._mat_adj_size, output_order) @ self.ptan_map(output_order)
 
   def tan_map_inv(self, output_order = None):
     output_order = self.__check_output_order(output_order)
-    return self.ptan_map_inv(output_order) @ self.tan_to_ptan(self._mat_size, output_order)
-
-  def tan_map_adj(self, output_order = None):
-    output_order = self.__check_output_order(output_order)
-    return self.ptan_to_tan(self._mat_adj_size, output_order) @ self.ptan_map_adj(output_order)
-
-  def tan_map_inv_adj(self, output_order = None):
-    output_order = self.__check_output_order(output_order)
-    return self.ptan_map_inv_adj(output_order) @ self.tan_to_ptan(self._mat_adj_size, output_order)
+    return self.ptan_map_inv(output_order) @ self.tan_to_ptan(self._mat_adj_size, output_order)
 
   @staticmethod
   def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
