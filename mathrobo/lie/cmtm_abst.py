@@ -355,6 +355,11 @@ class CMTM(Generic[T]):
           v[0] = rval._mat.mat_inv_adj() @ self._vecs[0] + rval._vecs[0]
         if self._n > 2:
           v[1] = rval._mat.mat_inv_adj() @ self._vecs[1] + self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[0] + rval._vecs[1]
+        if self._n > 3:
+          v[2] = rval._mat.mat_inv_adj() @ self._vecs[2] \
+              - 2 * self._mat.hat_adj(rval._vecs[0]) @ rval._mat.mat_inv_adj() @ self._vecs[1] \
+              + (- self._mat.hat_adj(rval._vecs[1]) + self._mat.hat_adj(rval._vecs[0]) @ self._mat.hat_adj(rval._vecs[0]) ) @ rval._mat.mat_inv_adj() @ self._vecs[0] \
+              + rval._vecs[2]
         return CMTM(m, v)
       else:
         TypeError("Right operand should be same size in left operand")
