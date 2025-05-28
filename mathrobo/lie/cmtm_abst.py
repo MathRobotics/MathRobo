@@ -38,10 +38,14 @@ class CMTM(Generic[T]):
     output_order = self.__check_output_order(output_order)
     
     mat = identity(self._mat_size * output_order)
+
+    tmp = np.zeros((output_order, self._mat_size, self._mat_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__mat_elem(abs(i-j))
+      tmp[i] = self.__mat_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
 
     return mat
   
@@ -59,10 +63,15 @@ class CMTM(Generic[T]):
     output_order = self.__check_output_order(output_order)
     
     mat = identity(self._mat_adj_size * output_order)
+
+    tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_adj_elem(abs(i-j))
+      tmp[i] = self.__mat_adj_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
+
     return mat
 
   @staticmethod
