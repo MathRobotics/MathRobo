@@ -30,7 +30,7 @@ class CMTM(Generic[T]):
     else:
       mat = zeros( (self._mat_size, self._mat_size) ) 
       for i in range(p):
-        mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i])
+        mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i]/math.factorial(i))
 
       return mat / p
     
@@ -55,7 +55,7 @@ class CMTM(Generic[T]):
     else:
       mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
       for i in range(p):
-        mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+        mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i]/math.factorial(i))
         
       return mat / p
     
@@ -90,11 +90,12 @@ class CMTM(Generic[T]):
       
     m = T.set_mat(tmp[0])
     vs = np.zeros((n-1, T.dof()))
+
     for i in range(n-1):
       m_tmp = np.zeros((size, size))
       for j in range(i):
-        m_tmp += tmp[i-j] @ T.hat(vs[j])
-      vs[i] = T.vee( m.inv() @  ( tmp[i+1] * (i+1) - m_tmp) )
+        m_tmp += tmp[i-j] @ T.hat(vs[j]/math.factorial(j))
+      vs[i] = T.vee( m.inv() @  ( tmp[i+1] * (i+1) - m_tmp) ) * math.factorial(i)
 
     return CMTM(m, vs)
   
@@ -152,7 +153,7 @@ class CMTM(Generic[T]):
       
   def inv(self):
     vecs = np.zeros_like(self._vecs)
-    if self._n < 4:
+    if self._n < 0:
       for i in range(self._n-1):
         vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
       return CMTM(self._mat.inv(), vecs)
@@ -166,7 +167,7 @@ class CMTM(Generic[T]):
     else:
       mat = zeros( (self._mat_size, self._mat_size) ) 
       for i in range(p):
-        mat = mat - self._mat.hat(self._vecs[i]) @ self.__mat_inv_elem(p-(i+1))
+        mat = mat - self._mat.hat(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_elem(p-(i+1))
         
       return mat / p
   
@@ -174,10 +175,15 @@ class CMTM(Generic[T]):
     output_order = self.__check_output_order(output_order)
     
     mat = identity(self._mat_size * output_order)
+
+    tmp = np.zeros((output_order, self._mat_size, self._mat_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_size*i:self._mat_size*(i+1),self._mat_size*j:self._mat_size*(j+1)] = self.__mat_inv_elem(abs(i-j))
+      tmp[i] = self.__mat_inv_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
+
     return mat
   
   def __mat_inv_adj_elem(self, p):
@@ -186,7 +192,7 @@ class CMTM(Generic[T]):
     else:
       mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
       for i in range(p):
-        mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__mat_inv_adj_elem(p-(i+1))
+        mat = mat - self._mat.hat_adj(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_adj_elem(p-(i+1))
         
       return mat / p
   
@@ -194,10 +200,15 @@ class CMTM(Generic[T]):
     output_order = self.__check_output_order(output_order)
 
     mat = identity(self._mat_adj_size * output_order)
+
+    tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__mat_inv_adj_elem(abs(i-j))
+      tmp[i] = self.__mat_inv_adj_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
+
     return mat
   
   @staticmethod
@@ -355,7 +366,7 @@ class CMTM(Generic[T]):
   def __matmul__(self, rval):
     if isinstance(rval, CMTM):
       if self._n == rval._n:
-        if self._n > 3:
+        if self._n > 4:
           # tentative implementation
           return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat())
         m = self._mat @ rval._mat
