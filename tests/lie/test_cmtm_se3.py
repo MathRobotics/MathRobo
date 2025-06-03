@@ -203,14 +203,11 @@ def test_cmtm_se3_tan_vecs_flatten():
   np.testing.assert_allclose(res[6:12], vec[1] + mr.SE3.hat_adj(vec[0]) @ vec[0])
   np.testing.assert_allclose(res[12:18], vec[2] + mr.SE3.hat_adj(vec[1]) @ vec[0] + mr.SE3.hat_adj(vec[0]) @ vec[1] + mr.SE3.hat_adj(vec[0]) @ mr.SE3.hat_adj(vec[0]) @ vec[0])
 
-
 def test_cmtm_se3_inv():
-  se3 = mr.SE3.rand()
+  n = 5
   
-  for i in range(5):
-    vel = np.random.rand(i,6)
-
-    res = mr.CMTM[mr.SE3](se3, vel)
+  for i in range(n):
+    res = mr.CMTM.rand(mr.SE3,i+1)
 
     expected_mat = np.eye(4*(i+1))
     result_mat = res @ res.inv()
@@ -272,51 +269,48 @@ def test_cmtm_se3_inv_adj():
     np.testing.assert_allclose(res.mat_adj() @ res.mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_hat():
-  vec = np.random.rand(1,6)
+  n = 5
+  for i in range(1,n+1):
+    vec = np.random.rand(i,6)
 
-  res = mr.CMTM.hat(mr.SE3, vec)
-  mat = mr.SE3.hat(vec[0])
-
-  np.testing.assert_array_equal(res, mat)
-
-def test_cmtm_se3_hat2():
-  vec = np.random.rand(2,6)
-
-  res = mr.CMTM.hat(mr.SE3, vec)
-  mat = np.zeros((8,8))
-  mat[0:4,0:4] = mat[4:8,4:8] = mr.SE3.hat(vec[0])
-  mat[4:8,0:4] = mr.SE3.hat(vec[1])  
-
-  np.testing.assert_array_equal(res, mat)
+    res = mr.CMTM.hat(mr.SE3, vec)
+    mat = np.zeros((4*i,4*i))
+    for j in range(i):
+      for k in range(j, i):
+        mat[4*k:4*(k+1), 4*(k-j):4*(k-j+1)] = mr.SE3.hat(vec[j])
+    np.testing.assert_array_equal(res, mat)
 
 def test_cmtm_se3_hat_adj():
-  vec = np.random.rand(1,6)
+  n = 5
+  for i in range(1,n+1):
+    vec = np.random.rand(i,6)
 
-  res = mr.CMTM.hat_adj(mr.SE3, vec)
-  mat = mr.SE3.hat_adj(vec[0])
+    res = mr.CMTM.hat_adj(mr.SE3, vec)
+    mat = np.zeros((6*i,6*i))
+    for j in range(i):
+      for k in range(j, i):
+        mat[6*k:6*(k+1), 6*(k-j):6*(k-j+1)] = mr.SE3.hat_adj(vec[j])
+    np.testing.assert_array_equal(res, mat)
 
-  np.testing.assert_array_equal(res, mat)
+def test_cmtm_se3_vee():
+  n = 5
+  for i in range(1,n+1):
+    vec = np.random.rand(i,6)
 
-def test_cmtm_se3_hat_adj_2():
-  vec = np.random.rand(2,6)
+    mat = mr.CMTM.hat(mr.SE3, vec)
+    res = mr.CMTM.vee(mr.SE3, mat)
 
-  res = mr.CMTM.hat_adj(mr.SE3, vec)
-  mat = np.zeros((12,12))
-  mat[0:6,0:6] = mat[6:12,6:12] = mr.SE3.hat_adj(vec[0])
-  mat[6:12,0:6] = mr.SE3.hat_adj(vec[1])  
+    np.testing.assert_allclose(res, vec) 
 
-  np.testing.assert_array_equal(res, mat)
+def test_cmtm_se3_vee_adj():
+  n = 5
+  for i in range(1,n+1):
+    vec = np.random.rand(i,6)
 
-def test_cmtm_se3_hat_adj_3():
-  vec = np.random.rand(3,6)
+    mat = mr.CMTM.hat_adj(mr.SE3, vec)
+    res = mr.CMTM.vee_adj(mr.SE3, mat)
 
-  res = mr.CMTM.hat_adj(mr.SE3, vec)
-  mat = np.zeros((18,18))
-  mat[0:6,0:6] = mat[6:12,6:12] = mat[12:18,12:18] = mr.SE3.hat_adj(vec[0])
-  mat[6:12,0:6] = mat[12:18,6:12] = mr.SE3.hat_adj(vec[1])
-  mat[12:18,0:6] = mr.SE3.hat_adj(vec[2])  
-
-  np.testing.assert_array_equal(res, mat)
+    np.testing.assert_allclose(res, vec) 
 
 def test_cmtm_se3_ptan_map():
   se3 = mr.SE3.rand()
@@ -418,7 +412,6 @@ def test_cmtm_se3_tan_to_ptan():
     for j in range(i):
       np.testing.assert_allclose(res.tan_to_ptan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
       mat = mat * (j+1)
-
     
 def test_cmtm_se3_tan_map():
   se3 = mr.SE3.rand()   
@@ -540,6 +533,29 @@ def test_cmtm_se3_sub_ptan_vec():
 
   np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15) 
 
+def test_cmtm_se3_sub():
+  n = 6
+  for i in range(n):
+    mat1 = mr.CMTM.rand(mr.SE3, i+1)
+    mat2 = mr.CMTM.rand(mr.SE3, i+1)
+
+    vec1 = mr.CMTM.ptan_to_tan(mr.SE3.dof(), i+1) @ mr.CMTM.sub_ptan_vec(mat1, mat2, "bframe")
+    vec2 = mat1.tan_map() @ mr.CMTM.sub_vec(mat1, mat2, "bframe")
+
+    np.testing.assert_allclose(vec1, vec2, rtol=1e-15, atol=1e-15)
+
+
+def test_cmtm_se3_sub_tan_vec():
+  n = 5
+  for i in range(n):
+    mat1 = mr.CMTM.rand(mr.SE3, i+1)
+    mat2 = mr.CMTM.rand(mr.SE3, i+1)
+
+    res = mr.CMTM.sub_tan_vec(mat1, mat2, "bframe")
+    vec = mr.CMTM.ptan_to_tan(mr.SE3.dof(), i+1) @ mr.CMTM.sub_ptan_vec(mat1, mat2, "bframe")
+
+    np.testing.assert_allclose(res, vec, rtol=1e-15, atol=1e-15)
+
 def test_cmtm_se3_matmul():
   order = 4
   m1 = mr.CMTM.rand(mr.SE3, order)
@@ -582,7 +598,6 @@ def test_cmtm_se3_multiply_adj():
     result_mat = m1 @ m2
 
     expected_mat = m1.mat_adj() @ m2.mat_adj()
-
 
     np.testing.assert_allclose(expected_mat, result_mat.mat_adj(), rtol=1e-14, atol=1e-14)
 
