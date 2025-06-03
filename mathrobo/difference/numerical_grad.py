@@ -81,17 +81,8 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, updat
         else:
             raise ValueError(f"Unsupported method: {method}")
 
-    # If direction is given: compute directional derivative
-    if direction is not None:
-        direction = np.asarray(direction, dtype=float).flatten()
-        norm = np.linalg.norm(direction)
-        if norm == 0:
-            raise ValueError("Direction vector must not be zero.")
-        direction = direction / norm
-
-        return diff_eval(direction, eps)
-    else:
-        # Else: compute full Jacobian (each input dimension perturbed independently)
+    if direction is None:
+        #compute full Jacobian (each input dimension perturbed independently)
         grad = np.zeros((y_dim, x_dim))
 
         for i in range(x_dim):
@@ -101,8 +92,17 @@ def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, updat
             grad[:, i]  = diff_eval(ei, eps)
 
         return grad if y_dim > 1 else grad.flatten()
+    else:
+        # direction is given: compute directional derivative
+        direction = np.asarray(direction, dtype=float).flatten()
+        norm = np.linalg.norm(direction)
+        if norm == 0:
+            raise ValueError("Direction vector must not be zero.")
+        direction = direction / norm
 
-def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None, update_func=None):
+        return diff_eval(direction, eps)
+
+def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None):
     return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, direction=None)
 
 def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, update_func=None, direction=None):
