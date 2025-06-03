@@ -262,23 +262,40 @@ class CMTM(Generic[T]):
       for i in range(p):
         mat = mat - self.__ptan_map_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
       return mat
-  
+
   def ptan_map(self, output_order = None):
     output_order = self.__check_output_order(output_order)
     mat = identity(self._mat_adj_size * output_order)
+    
+    tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i >= j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__ptan_map_elem(abs(i-j))
+      tmp[i] = self.__ptan_map_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
+
     return mat
+  
+  def __ptan_map_inv_elem(self, p : int):
+    if p == 0:
+      return identity( self._mat_adj_size ) 
+    else:
+      mat = self._mat.hat_adj(self._vecs[p-1])
+      return mat
   
   def ptan_map_inv(self, output_order = None):
     output_order = self.__check_output_order(output_order)
     mat = identity(self._mat_adj_size * output_order)
+    
+    tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
     for i in range(output_order):
-      for j in range(output_order):
-        if i > j :
-          mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self._mat.hat_adj(self._vecs[abs(i-j-1)])
+      tmp[i] = self.__ptan_map_inv_elem(i)
+
+    for i in range(output_order):
+      for j in range(i, output_order):
+          mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
+          
     return mat
 
   @staticmethod
