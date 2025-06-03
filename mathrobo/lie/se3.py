@@ -16,6 +16,14 @@ class SE3(LieAbstract):
   def dof():
     return 6
   
+  @staticmethod
+  def mat_size():
+    return 4
+  
+  @staticmethod
+  def mat_adj_size():
+    return 6
+  
   def mat(self):
     mat = identity(4)
     mat[0:3,0:3] = self._rot
@@ -293,8 +301,8 @@ class SE3(LieAbstract):
   def vee_adj(vec_hat, LIB = 'numpy'):
     vec = zeros(6, LIB)
     
-    vec[0,3] = 0.5*(SO3.vee(vec_hat[0:3,0:3], LIB) + SO3.vee(vec_hat[3:6,3:6]), LIB)
-    vec[3,6] = SO3.vee(vec_hat[3:6,0:3], LIB)
+    vec[0:3] = 0.5*(SO3.vee(vec_hat[0:3,0:3], LIB) + SO3.vee(vec_hat[3:6,3:6], LIB))
+    vec[3:6] = SO3.vee(vec_hat[3:6,0:3], LIB)
 
     return vec
   

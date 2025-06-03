@@ -13,6 +13,14 @@ class SO3(LieAbstract):
   @staticmethod
   def dof():
     return 3
+  
+  @staticmethod
+  def mat_size():
+    return 3
+  
+  @staticmethod
+  def mat_adj_size():
+    return 3
     
   def mat(self):
     return self._rot
@@ -275,6 +283,10 @@ class SO3(LieAbstract):
   @staticmethod
   def hat_commute_adj(vec, LIB = 'numpy'):
     return SO3.hat_commute(vec, LIB)
+  
+  @staticmethod
+  def vee_adj(mat, LIB = 'numpy'):
+    return SO3.vee(mat, LIB)
   
   @staticmethod
   def exp_adj(vec, a, LIB = 'numpy'):
