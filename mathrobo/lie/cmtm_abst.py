@@ -231,28 +231,29 @@ class CMTM(Generic[T]):
     return CMTM.__hat_func(T.hat_adj, vecs)
 
   @staticmethod
-  def __vee_func(dof, vee, mat):
+  def __vee_func(dof, size, vee, mat):
     '''
     dof : dof of lie group
+    size : size of matrix
     vee : vee function
     '''
-    n = vee(np.zeros((dof,dof))).shape[0]
-    m = int(mat.shape[0] / n)
+    n = dof
+    m = int(mat.shape[0] / size)
     vecs = np.zeros((m,n))
     for i in range(m):
       tmp = np.zeros(n)
-      for j in range(m-i):
-        tmp += vee( mat[(j+i)*n:(j+i+1)*n, j*n:(j+1)*n] )
+      for j in range(i,m):
+        tmp += vee( mat[j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
       vecs[i] = tmp / (m-i)
     return vecs
 
   @staticmethod
   def vee(T, hat_mat):
-    return CMTM.__vee_func(T.dof(), T.vee, hat_mat)
+    return CMTM.__vee_func(T.dof(), T.mat_size(), T.vee, hat_mat)
   
   @staticmethod
   def vee_adj(T, hat_mat):
-    return CMTM.__vee_func(T.dof(), T.vee_adj, hat_mat)  
+    return CMTM.__vee_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)  
 
   def __ptan_map_elem(self, p : int):
     if p == 0:
@@ -347,7 +348,7 @@ class CMTM(Generic[T]):
     return vec
   
   @staticmethod
-  def sub_ptan_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+  def sub_ptan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray: 
     '''
     Subtract the psuedu tangent vector of two CMTM objects.
     '''
@@ -358,27 +359,34 @@ class CMTM(Generic[T]):
 
     dof = lval._mat._dof
     vec = np.zeros((lval._n * dof))
-    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+    vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame_type)
     for i in range(lval._n-1):
       vec[dof*(i+1):dof*(i+2)] = (rval._vecs[i] - lval._vecs[i])
       for j in range(i+1):
         vec[dof*(i+1):dof*(i+2)] += (lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j])
 
     return vec
+  
+  @staticmethod
+  def sub_tan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray:
+    return lval.ptan_to_tan(lval._mat.dof(), lval._n) @ CMTM.sub_ptan_vec(lval, rval, frame_type)
 
   @staticmethod
-  def sub_tan_vec(lval, rval, type = 'bframe') -> np.ndarray:
+  def sub_tan_vec_var(lval, rval, frame_type = 'bframe') -> np.ndarray:
+    '''
+    Subtract two variant CMTM objects in tangent space.
+    '''
     if lval._n != rval._n:
       raise TypeError("Left operand should be same order in right operand")
     if lval._dof != rval._dof:
       raise TypeError("Left operand should be same dof in right operand")
 
-    if type == 'bframe':
-      vec = lval.mat_inv() @ (rval.mat() - lval.mat())
-    elif type == 'fframe':
-      vec = (rval.mat() - lval.mat()) @ lval.mat_inv()
+    if frame_type == 'bframe':
+      vec = lval.vee(type(lval._mat), lval.mat_inv() @ (rval.mat() - lval.mat()))
+    elif frame_type == 'fframe':
+      vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
     
-    return vec
+    return vec.flatten()
 
   def __matmul__(self, rval):
     if isinstance(rval, CMTM):
