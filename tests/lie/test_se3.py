@@ -71,6 +71,14 @@ def test_se3_vee():
   res = mr.SE3.vee(hat)
   
   np.testing.assert_array_equal(v, res)
+
+def test_se3_vee_adj():
+  v = np.random.rand(6)
+  
+  hat = mr.SE3.hat_adj(v)
+  res = mr.SE3.vee_adj(hat)
+  
+  np.testing.assert_array_equal(v, res)
   
 def test_se3_exp():
   v = np.random.rand(6)
