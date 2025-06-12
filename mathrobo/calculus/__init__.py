@@ -4,3 +4,4 @@
 
 from .integral import *
 from .numerical_grad import *
+from .bspline import *
