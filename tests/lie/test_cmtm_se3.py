@@ -1,8 +1,5 @@
 import numpy as np
 
-from scipy.linalg import expm
-from scipy import integrate
-
 import mathrobo as mr
 
 def test_cmtm_se3():
