@@ -131,7 +131,7 @@ class SE3(LieAbstract):
     同次変換行列の計算
     sympyの場合,vec[0:3]の大きさは1を想定
     '''
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       rot = vec[0:3]
       pos = vec[3:6]
     elif LIB == 'sympy':
@@ -155,15 +155,15 @@ class SE3(LieAbstract):
       p x Rの積分の計算
       sympyの場合,vec[0:3]の大きさは1を想定
     """
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       theta = norm(vec[0:3], LIB)
-      if not np.isclose(theta, 1.0):
+      if not isclose(theta, 1.0, LIB):
         a_ = a*theta
       else:
         a_ = a
 
       if iszero(theta):
-        return 0.5*a*a*SO3.hat(vec[3:6])
+        return 0.5*a*a*SO3.hat(vec[3:6], LIB)
       else:
         u, v, w = vec[0:3] / theta
         x, y, z = vec[3:6]
@@ -265,7 +265,7 @@ class SE3(LieAbstract):
     '''
     sympyの場合,vec[0:3]の大きさは1を想定
     '''
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       rot = vec[0:3]
       pos = vec[3:6]
     elif LIB == 'sympy':
@@ -328,7 +328,7 @@ class SE3(LieAbstract):
       SE3の随伴表現の積分の計算
       sympyの場合,vec[0:3]の大きさは1を想定
     """
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       rot = vec[0:3]
     elif LIB == 'sympy':
       rot = sp.Matrix(vec[0:3])

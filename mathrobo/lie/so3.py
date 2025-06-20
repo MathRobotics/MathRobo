@@ -146,15 +146,15 @@ class SO3(LieAbstract):
       回転行列の計算
       sympyの場合,vecの大きさは1を想定
     """
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       theta = norm(vec, LIB)
-      if not np.isclose(theta, 1.0):
+      if not isclose(theta, 1.0, LIB):
         a_ = a*theta
       else:
         a_ = a
         
       if iszero(theta):
-        return identity(3)
+        return identity(3, LIB)
       else:
         x, y, z = vec / theta           
 
@@ -189,9 +189,9 @@ class SO3(LieAbstract):
       回転行列の積分の計算
       sympyの場合,vecの大きさは1を想定
     """
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       theta = norm(vec, LIB)
-      if not np.isclose(theta, 1.0):
+      if not isclose(theta, 1.0, LIB):
         a_ = a*theta
       else:
         a_ = a
@@ -235,15 +235,15 @@ class SO3(LieAbstract):
       回転行列の積分の計算
       sympyの場合,vecの大きさは1を想定
     """
-    if LIB == 'numpy':
+    if LIB == 'numpy' or LIB == 'jax':
       theta = norm(vec, LIB)
-      if not np.isclose(theta, 1.0):
+      if not isclose(theta, 1.0, LIB):
         a_ = a*theta
       else:
         a_ = a
 
       if iszero(theta):
-        return a*identity(3)
+        return a*identity(3, LIB)
       else:
         x, y, z = vec/theta
         k = 1./(theta*theta)
@@ -313,10 +313,10 @@ class SO3(LieAbstract):
       TypeError("Right operand should be SO3 or numpy.ndarray")
 
   @staticmethod
-  def rand():
+  def rand(LIB = 'numpy'):
     v = np.random.rand(3) 
     m = SO3.exp(v)
-    return SO3(m)
+    return SO3(m, LIB)
   
 class SO3wrench(SO3):
   @staticmethod

@@ -4,8 +4,12 @@
 
 import numpy as np
 import sympy as sp
+import jax.numpy as jnp
 
 import math
+
+def lib_error_message():
+  ValueError("Unsupported library. Choose 'numpy', 'sympy' or 'jax'.")
 
 def iszero(x):
   tolerance = 1e-8  # 許容範囲
@@ -16,16 +20,20 @@ def sin(theta, LIB = 'numpy'):
     return np.sin(theta)
   elif LIB == 'sympy':
     return sp.sin(theta)
+  elif LIB == 'jax':
+    return jnp.sin(theta)
   else:
-    raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")
+    raise lib_error_message()
   
 def cos(theta, LIB = 'numpy'):
   if LIB == 'numpy':
     return np.cos(theta)
   elif LIB == 'sympy':
     return sp.cos(theta)
+  elif LIB == 'jax':
+    return jnp.cos(theta)
   else:
-    raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")
+    raise lib_error_message()
 
 def zeros(shape, LIB = 'numpy'):
   if LIB == 'numpy':
@@ -35,8 +43,10 @@ def zeros(shape, LIB = 'numpy'):
       return sp.zeros(shape,1)
     elif type(shape) == tuple and len(shape) == 2:
       return sp.zeros(shape[0],shape[1])
+  elif LIB == 'jax':
+    return jnp.zeros(shape)
   else:
-    raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")
+    raise lib_error_message()
   
 def identity(size, LIB = 'numpy'):
   if LIB == 'numpy':
@@ -46,16 +56,31 @@ def identity(size, LIB = 'numpy'):
     for i in range(size):
       m[i,i] = 1
     return m
+  elif LIB == 'jax':
+    return jnp.identity(size)
   else:
-    raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")  
+    raise lib_error_message()  
 
 def norm(vec, LIB = 'numpy'):
     if LIB == 'numpy':
       return np.linalg.norm(vec)
     elif LIB == 'sympy':
       return sp.sqrt(vec.dot(vec))
+    elif LIB == 'jax':
+      return jnp.linalg.norm(vec)
     else:
-      raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")
+      raise lib_error_message()
+    
+def isclose(a, b, LIB = 'numpy'):
+    if LIB == 'numpy':
+        return np.isclose(a, b)
+    elif LIB == 'sympy':
+        return sp.simplify(a - b) == 0
+    elif LIB == 'jax':
+        return jnp.isclose(a, b)
+    else:
+        raise lib_error_message()
+    
     
 def gq_integrate(func, a, b, digit = 5, LIB = 'numpy'):
     if LIB == 'numpy':
