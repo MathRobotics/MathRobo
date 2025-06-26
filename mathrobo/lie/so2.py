@@ -48,8 +48,8 @@ class SO2(LieAbstract):
     return self._rot
   
   @staticmethod
-  def set_mat_adj(mat = identity(3)):
-    return SO2(mat)
+  def set_mat_adj(mat = identity(2)):
+    return SO2(mat[0:2,0:2])
 
   def inv_adj(self):
     return self._rot.transpose()
