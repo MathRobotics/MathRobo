@@ -28,6 +28,20 @@ pip install .
 ## Examples
 Refer to the examples in the `examples` folder, where you can find Jupyter notebooks and scripts demonstrating various use cases of the library.
 
+## Usage
+
+Here is a quick example that computes the numerical gradient of a simple function:
+
+```python
+import numpy as np
+import mathrobo as mr
+
+f = lambda x: np.sum(x**2)
+x = np.array([1.0, 2.0, -3.0])
+grad = mr.numerical_grad(x, f)
+print(grad)
+```
+
 ## Running Tests
 
 To ensure Mathrobo is working correctly, run the tests using:
@@ -39,3 +53,7 @@ pytest
 
 ## Contributing
 Contributions are welcome! Feel free to report issues, suggest features, or submit pull requests.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
