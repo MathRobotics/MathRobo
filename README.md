@@ -30,18 +30,6 @@ Refer to the examples in the `examples` folder, where you can find Jupyter noteb
 
 ## Usage
 
-Here is a quick example that computes the numerical gradient of a simple function:
-
-```python
-import numpy as np
-import mathrobo as mr
-
-f = lambda x: np.sum(x**2)
-x = np.array([1.0, 2.0, -3.0])
-grad = mr.numerical_grad(x, f)
-print(grad)
-```
-
 You can also work with spatial transformations using the `SE3` class. The
 following snippet creates a 90 degree rotation around the Z axis with a
 translation, applies the transformation to a point and then inverts it:
@@ -60,6 +48,18 @@ recovered = T.inv() @ transformed
 
 print(transformed)
 print(recovered)
+```
+
+Here is a quick example that computes the numerical gradient of a simple function:
+
+```python
+import numpy as np
+import mathrobo as mr
+
+f = lambda x: np.sum(x**2)
+x = np.array([1.0, 2.0, -3.0])
+grad = mr.numerical_grad(x, f)
+print(grad)
 ```
 
 ## Running Tests
