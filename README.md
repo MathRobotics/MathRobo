@@ -42,6 +42,26 @@ grad = mr.numerical_grad(x, f)
 print(grad)
 ```
 
+You can also work with spatial transformations using the `SE3` class. The
+following snippet creates a 90 degree rotation around the Z axis with a
+translation, applies the transformation to a point and then inverts it:
+
+```python
+import numpy as np
+import mathrobo as mr
+
+# Rotation of 90 deg about Z and translation of 1 m along X
+rot = mr.SO3.exp(np.array([0.0, 0.0, 1.0]), np.pi / 2)
+T = mr.SE3(rot, np.array([1.0, 0.0, 0.0]))
+
+point = np.array([0.0, 1.0, 0.0])
+transformed = T @ point
+recovered = T.inv() @ transformed
+
+print(transformed)
+print(recovered)
+```
+
 ## Running Tests
 
 To ensure Mathrobo is working correctly, run the tests using:
