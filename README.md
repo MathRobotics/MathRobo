@@ -62,6 +62,34 @@ grad = mr.numerical_grad(x, f)
 print(grad)
 ```
 
+You can also perform numerical integration using the Gaussian quadrature helper
+`gq_integrate`:
+
+```python
+import numpy as np
+import mathrobo as mr
+
+f = lambda s: np.array([np.sin(s)])
+val = mr.gq_integrate(f, 0.0, np.pi, digit=5)
+print(val)  # ~ 2.0
+```
+
+For spline trajectories, SciPy's `BSpline` can be used to create and evaluate a
+curve:
+
+```python
+import numpy as np
+from scipy.interpolate import make_interp_spline
+
+t = np.array([0, 1, 2, 3])
+points = np.array([0.0, 1.0, 0.0, 1.0])
+spl = make_interp_spline(t, points, k=3)
+
+ts = np.linspace(0, 3, 20)
+ys = spl(ts)
+print(ys)
+```
+
 ## Running Tests
 
 To ensure Mathrobo is working correctly, run the tests using:
