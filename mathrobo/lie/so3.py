@@ -118,6 +118,16 @@ class SO3(LieAbstract):
 
     @staticmethod
     def hat(vec, LIB = 'numpy'):
+        if LIB == "jax":
+            vec = jnp.asarray(vec, dtype=jnp.float32)
+            zero = jnp.zeros((), dtype=vec.dtype)
+            return jnp.array(
+                [[ zero,   -vec[2],  vec[1]],
+                  [ vec[2],  zero,    -vec[0]],
+                  [-vec[1],  vec[0],   zero ]],
+                dtype=vec.dtype,
+            )
+  
         mat = zeros((3,3), LIB)
         mat[1,2] = -vec[0]
         mat[2,1] =  vec[0]
