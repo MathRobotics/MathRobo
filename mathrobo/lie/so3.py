@@ -208,7 +208,7 @@ class SO3(LieAbstract):
             回転行列の積分の計算
             sympyの場合,vecの大きさは1を想定
         """
-        if LIB == 'numpy' or LIB == 'jax':
+        if LIB == 'numpy':
             theta = norm(vec, LIB)
             if not isclose(theta, 1.0, LIB):
                 a_ = a*theta
@@ -220,6 +220,20 @@ class SO3(LieAbstract):
             else:
                 x, y, z = vec/theta
                 k = 1./theta
+
+        elif LIB == 'jax':
+            n = jnp.linalg.norm(vec)
+            a_  = n * a
+            I  = jnp.eye(3, dtype=vec.dtype)
+            ca = jnp.cos(a_)
+            sa = jnp.sin(a_)
+
+            A  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca)/ (n*n))
+            B  = jnp.where(a_ == 0.0, 0.0, (a_ - sa) / (n*n*n))
+
+            K = SO3.hat(vec, 'jax')
+
+            return a_*I + A * K + B * (K @ K)
                 
         elif LIB == 'sympy':
             a_ = a
