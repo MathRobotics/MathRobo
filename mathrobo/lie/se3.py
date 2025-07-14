@@ -302,11 +302,24 @@ class SE3(LieAbstract):
     
     @staticmethod
     def hat_adj(vec, LIB = 'numpy'):
+        if LIB == 'jax':
+            w, v = jnp.split(vec, 2, axis=-1)
+            w_hat = SO3.hat(w, 'jax')
+            v_hat = SO3.hat(v, 'jax')
+            mat = jnp.block([
+                [w_hat, jnp.zeros((3, 3), dtype=vec.dtype)],
+                [v_hat, w_hat]
+            ])
+            return mat
+
         mat = zeros((6,6), LIB)
 
-        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
-        mat[3:6,3:6] = SO3.hat(vec[0:3], LIB)
-        mat[3:6,0:3] = SO3.hat(vec[3:6], LIB)
+        w_hat = SO3.hat(vec[0:3], LIB)
+        v_hat = SO3.hat(vec[3:6], LIB)
+
+        mat[0:3,0:3] = w_hat
+        mat[3:6,3:6] = w_hat
+        mat[3:6,0:3] = v_hat
 
         return mat
     
