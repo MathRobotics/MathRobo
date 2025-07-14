@@ -358,8 +358,21 @@ class SE3(LieAbstract):
             SE3の随伴表現の積分の計算
             sympyの場合,vec[0:3]の大きさは1を想定
         """
-        if LIB == 'numpy' or LIB == 'jax':
+        if LIB == 'numpy':
             rot = vec[0:3]
+        elif LIB == 'jax':
+            w, _ = jnp.split(vec, 2, axis=-1)
+            n = jnp.linalg.norm(w)
+            a_ = a * n
+            ca = jnp.cos(a_)
+            sa = jnp.sin(a_)
+            A0 = jnp.eye(6) * a
+            A1 = jnp.where(a_ == 0.0, 0.5*a_*a_, 0.5 * (4.0 - 4.0*ca - a_*sa)/ (n*n))
+            A2 = jnp.where(a_ == 0.0, 0.0, 0.5 * (4.0*a_ - 5.0*sa + a_*ca)/ (n*n*n))
+            A3 = jnp.where(a_ == 0.0, 0.0, 0.5 * (2.0 - 2.0*ca -a_*sa)/ (n*n*n*n))
+            A4 = jnp.where(a_ == 0.0, 0.0, 0.5 * (2.0*a_ - 3*sa + a_*ca)/ (n*n*n*n*n))
+            K = SE3.hat_adj(vec, 'jax')
+            return A0 + A1*K + A2*K@K + A3*K@K@K + A4*K@K@K@K
         elif LIB == 'sympy':
             rot = sp.Matrix(vec[0:3])
         else:
