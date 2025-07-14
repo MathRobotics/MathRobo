@@ -90,6 +90,14 @@ class SE3(LieAbstract):
         '''
         hat operator on the tanget space vector
         '''
+        if LIB == "jax":
+            w, v = jnp.split(vec, 2, axis=-1)
+            upper = jnp.concatenate(
+                (SO3.hat(w, LIB), v.reshape(3, 1)), axis=1)  # (3,4)
+            lower = jnp.zeros((1, 4), upper.dtype) # (1,4)
+
+            return jnp.concatenate((upper, lower), axis=0)  # (4,4)
+
         mat = zeros((4,4), LIB)
 
         mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
@@ -131,9 +139,18 @@ class SE3(LieAbstract):
         同次変換行列の計算
         sympyの場合,vec[0:3]の大きさは1を想定
         '''
-        if LIB == 'numpy' or LIB == 'jax':
+        if LIB == 'numpy':
             rot = vec[0:3]
             pos = vec[3:6]
+        elif LIB == 'jax':
+            rot, pos = jnp.split(vec, 2, axis=-1)
+            R = SO3.exp(rot, a, LIB)
+            V = SO3.exp_integ(rot, a, LIB)
+            p = (V @ pos).reshape(3, 1)                # (3,1) ★ここで列化★
+            return jnp.block([
+                    [R,   p],
+                    [jnp.zeros((1,3), dtype=vec.dtype), jnp.ones((1,1), dtype=vec.dtype)]
+                ])
         elif LIB == 'sympy':
             rot = sp.Matrix(vec[0:3])
             pos = sp.Matrix(vec[3:6])
