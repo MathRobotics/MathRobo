@@ -171,10 +171,10 @@ class SO3(LieAbstract):
             ca = jnp.cos(a_)
             sa = jnp.sin(a_)
 
-            A  = jnp.where(a_ == 0.0, 0.0, sa / n)
-            B  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca) / (n * n))
+            A  = jnp.where(a_ == 0.0, 0.0, sa)
+            B  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca))
 
-            K = SO3.hat(vec, 'jax')
+            K = SO3.hat(vec/n, 'jax')
 
             return I + A * K + B * (K @ K)
         elif LIB == 'sympy':
