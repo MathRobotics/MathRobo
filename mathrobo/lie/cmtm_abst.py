@@ -15,7 +15,7 @@ class CMTM(Generic[T]):
         self._mat_size = elem_mat.mat().shape[0]
         self._mat_adj_size = elem_mat.mat_adj().shape[0]
         self._n = elem_vecs.shape[0] + 1
-        self.lib = LIB
+        self._lib = LIB
 
     def __check_output_order(self, output_order : int):
         if output_order is None:
