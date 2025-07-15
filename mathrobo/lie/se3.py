@@ -432,10 +432,14 @@ class SE3(LieAbstract):
             vec = jnp.concatenate([w, v])
 
         return vec
+
+    def se3_mul(l_rot, l_pos, r_rot, r_pos):
+        return SO3.so3_mul(l_rot, r_rot), l_pos + l_rot @ r_pos
     
     def __matmul__(self, rval):
         if isinstance(rval, SE3):
-            return SE3(self._rot @ rval._rot, self._pos + self._rot @ rval._pos, self.lib)
+            rot, pos = SE3.se3_mul(self._rot, self._pos, rval._rot, rval._pos)
+            return SE3(rot, pos, self.lib)
         elif isinstance(rval, np.ndarray):
             if rval.shape[0] == 3:
                 return self._rot @ rval + self._pos

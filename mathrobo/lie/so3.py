@@ -357,12 +357,16 @@ class SO3(LieAbstract):
         elif type == 'fframe':
             vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
         return vec
+    
+    @staticmethod
+    def so3_mul(l_rot, r_rot):  
+        return l_rot @ r_rot
 
     def __matmul__(self, rval):
         if isinstance(rval, SO3):
-            return SO3(self._rot @ rval._rot, self.lib)
+            return SO3(SO3.so3_mul(self._rot, rval._rot), self.lib)
         elif isinstance(rval, np.ndarray):
-            return self._rot @ rval
+            return SO3.so3_mul(self._rot, rval)
         else:
             TypeError("Right operand should be SO3 or numpy.ndarray")
 
