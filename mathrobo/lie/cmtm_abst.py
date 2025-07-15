@@ -75,7 +75,7 @@ class CMTM(Generic[T]):
         return mat
 
     @staticmethod
-    def set_mat(T, mat : np.ndarray):
+    def set_mat(T, mat : np.ndarray, LIB = 'numpy'):
         size = T.eye().mat().shape[0]
         if mat.shape[0] % size != 0:
             raise TypeError("Matrix size is not same as element matrix")
