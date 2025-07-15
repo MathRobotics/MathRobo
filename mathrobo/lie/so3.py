@@ -26,8 +26,8 @@ class SO3(LieAbstract):
         return self._rot
     
     @staticmethod
-    def set_mat(mat = identity(3)):
-        return SO3(mat)
+    def set_mat(mat = identity(3), LIB = 'numpy'):
+        return SO3(mat, LIB)
     
     def quaternion(self) -> np.ndarray:
         # trace
@@ -76,32 +76,40 @@ class SO3(LieAbstract):
         return q  # [w, x, y, z]
         
     @staticmethod
-    def quaternion_to_mat(quaternion):
+    def quaternion_to_mat(quaternion, LIB = 'numpy'):
         w, x, y, z = quaternion
-
-        m = np.array([
-            [1 - 2 * (y**2 + z**2),     2 * (x * y - z * w),     2 * (x * z + y * w)],
-            [    2 * (x * y + z * w), 1 - 2 * (x**2 + z**2),     2 * (y * z - x * w)],
-            [    2 * (x * z - y * w),     2 * (y * z + x * w), 1 - 2 * (x**2 + y**2)]
-        ])
-        
-        return m
+        if LIB == 'jax':
+            m = jnp.array([
+                [1 - 2 * (y**2 + z**2),     2 * (x * y - z * w),     2 * (x * z + y * w)],
+                [    2 * (x * y + z * w), 1 - 2 * (x**2 + z**2),     2 * (y * z - x * w)],
+                [    2 * (x * z - y * w),     2 * (y * z + x * w), 1 - 2 * (x**2 + y**2)]
+            ])
+            return m
+        elif LIB == 'numpy':
+            m = np.array([
+                [1 - 2 * (y**2 + z**2),     2 * (x * y - z * w),     2 * (x * z + y * w)],
+                [    2 * (x * y + z * w), 1 - 2 * (x**2 + z**2),     2 * (y * z - x * w)],
+                [    2 * (x * z - y * w),     2 * (y * z + x * w), 1 - 2 * (x**2 + y**2)]
+            ])
+            return m
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     @staticmethod
-    def set_quaternion(quaternion):
-        return SO3(SO3.quaternion_to_mat(quaternion))
+    def set_quaternion(quaternion, LIB = 'numpy'):
+        return SO3(SO3.quaternion_to_mat(quaternion), LIB)
     
     @staticmethod
-    def mat_to_quaternion(mat):
-        m = SO3(mat)
+    def mat_to_quaternion(mat, LIB = 'numpy'):
+        m = SO3(mat, LIB)
         return m.quaternion()
     
     @staticmethod
-    def eye():
-        return SO3(identity(3))
+    def eye(LIB = 'numpy'):
+        return SO3(identity(3), LIB)
 
     def inv(self):
-        return SO3(self._rot.transpose())
+        return SO3(self._rot.transpose(), self._lib)
         
     def mat_inv(self):
         return self._rot.transpose()
@@ -110,8 +118,8 @@ class SO3(LieAbstract):
         return self._rot
     
     @staticmethod
-    def set_mat_adj(mat = identity(3)):
-        return SO3(mat)
+    def set_mat_adj(mat = identity(3), LIB = 'numpy'):
+        return SO3(mat, LIB)
 
     def mat_inv_adj(self):
         return self._rot.transpose()
@@ -141,6 +149,12 @@ class SO3(LieAbstract):
 
     @staticmethod
     def vee(vec_hat, LIB = 'numpy'):
+        if LIB == 'jax':
+            return jnp.array([
+                0.5 * (vec_hat[2, 1] - vec_hat[1, 2]),
+                0.5 * (vec_hat[0, 2] - vec_hat[2, 0]),
+                0.5 * (vec_hat[1, 0] - vec_hat[0, 1])
+            ], dtype=vec_hat.dtype)
         vec = zeros(3, LIB)
         vec[0] = (-vec_hat[1,2] + vec_hat[2,1]) / 2
         vec[1] = (-vec_hat[2,0] + vec_hat[0,2]) / 2
@@ -330,16 +344,16 @@ class SO3(LieAbstract):
         return SO3.exp_integ(vec, a, LIB)
 
     @staticmethod
-    def sub_tan_vec(val0, val1, type = 'bframe'):
+    def sub_tan_vec(val0, val1, type = 'bframe', LIB = 'numpy'):
         if type == 'bframe':
-            vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot))
+            vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
         elif type == 'fframe':
-            vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv())
+            vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
         return vec
 
     def __matmul__(self, rval):
         if isinstance(rval, SO3):
-            return SO3(self._rot @ rval._rot)
+            return SO3(self._rot @ rval._rot, self._lib)
         elif isinstance(rval, np.ndarray):
             return self._rot @ rval
         else:
