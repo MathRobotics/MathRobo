@@ -3,15 +3,22 @@ from .lie_abst import *
 
 class SO3(LieAbstract):
     _dof = 3
-    def __init__(self, r = identity(3), LIB = 'numpy'):
+    def __init__(self, r = np.identity(3), LIB = 'numpy'):
         '''
         Constructor
         '''
         self._rot = r
         self._lib = LIB
 
+    @property
+    def lib(self) -> str:
+        '''
+        Return the library used for the Lie group
+        '''
+        return self._lib
+
     @staticmethod
-    def dof():
+    def dof() -> int:
         return 3
     
     @staticmethod
@@ -26,7 +33,7 @@ class SO3(LieAbstract):
         return self._rot
     
     @staticmethod
-    def set_mat(mat = identity(3), LIB = 'numpy'):
+    def set_mat(mat = np.identity(3), LIB = 'numpy'):
         return SO3(mat, LIB)
     
     def quaternion(self) -> np.ndarray:
@@ -109,7 +116,7 @@ class SO3(LieAbstract):
         return SO3(identity(3), LIB)
 
     def inv(self):
-        return SO3(self._rot.transpose(), self._lib)
+        return SO3(self._rot.transpose(), self.lib)
         
     def mat_inv(self):
         return self._rot.transpose()
@@ -353,7 +360,7 @@ class SO3(LieAbstract):
 
     def __matmul__(self, rval):
         if isinstance(rval, SO3):
-            return SO3(self._rot @ rval._rot, self._lib)
+            return SO3(self._rot @ rval._rot, self.lib)
         elif isinstance(rval, np.ndarray):
             return self._rot @ rval
         else:

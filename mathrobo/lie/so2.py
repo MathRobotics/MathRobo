@@ -10,10 +10,21 @@ class SO2(LieAbstract):
         self._rot = r
         self._lib = LIB
 
+    @property
+    def lib(self) -> str:
+        '''
+        Return the library used for the Lie group
+        '''
+        return self._lib
+
     @staticmethod
     def dof():
         return 2
-        
+    
+    @property
+    def mat_size(self) -> int:
+        return 2
+
     def mat(self):
         return self._rot
     
@@ -43,6 +54,30 @@ class SO2(LieAbstract):
 
     def inv(self):
         return self._rot.transpose()
+    
+    @staticmethod
+    def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        hat operator on the tangent space vector
+        '''
+        if LIB == 'numpy':
+            return np.array([[0, -vec[0]], [vec[0], 0]])
+        elif LIB == 'jax':
+            return jnp.array([[0, -vec[0]], [vec[0], 0]])
+        else:
+            raise ValueError("Unsupported library: {}".format(LIB))
+
+    @staticmethod
+    def vee(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        vee operator on the tangent space vector
+        '''
+        if LIB == 'numpy':
+            return np.array([vec_hat[1, 0]])
+        elif LIB == 'jax':
+            return jnp.array([vec_hat[1, 0]])
+        else:
+            raise ValueError("Unsupported library: {}".format(LIB))
 
     def mat_adj(self):
         return self._rot

@@ -10,18 +10,25 @@ class SE3(LieAbstract):
         '''
         self._rot = rot
         self._pos = pos
-        self.lib = LIB
+        self._lib = LIB
+
+    @property
+    def lib(self) -> str:
+        '''
+        Return the library used for the Lie group
+        '''
+        return self._lib
 
     @staticmethod
-    def dof():
+    def dof() -> int:
         return 6
     
     @staticmethod
-    def mat_size():
+    def mat_size() -> int:
         return 4
     
     @staticmethod
-    def mat_adj_size():
+    def mat_adj_size() -> int:
         return 6
     
     def mat(self):
