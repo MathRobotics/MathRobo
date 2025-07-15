@@ -25,18 +25,26 @@ class SE3(LieAbstract):
         return 6
     
     def mat(self):
-        mat = identity(4)
-        mat[0:3,0:3] = self._rot
-        mat[0:3,3] = self._pos
+        if self.lib == 'jax':
+            mat = jnp.block([
+                [self._rot, self._pos[:, None]],
+                [jnp.zeros((1, 3), dtype=self._rot.dtype), jnp.ones((1, 1), dtype=self._rot.dtype)]
+            ])
+        elif self.lib == 'numpy':
+            mat = np.eye(4, dtype=self._rot.dtype)
+            mat[0:3, 0:3] = self._rot
+            mat[0:3, 3] = self._pos
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
         return mat
     
     @staticmethod
-    def set_mat(mat = identity(4)):
-        return SE3(mat[0:3,0:3], mat[0:3,3])
+    def set_mat(mat = identity(4), LIB = 'numpy'):
+        return SE3(mat[0:3,0:3], mat[0:3,3], LIB)
     
     @staticmethod
-    def set_pos_quaternion(pos, quaternion):
-        return SE3(SO3.quaternion_to_mat(quaternion), pos)
+    def set_pos_quaternion(pos, quaternion, LIB = 'numpy'):
+        return SE3(SO3.quaternion_to_mat(quaternion), pos, LIB)
 
     def pos(self):
         return self._pos
@@ -45,14 +53,14 @@ class SE3(LieAbstract):
         return self._rot
     
     def pos_quaternion(self):
-        return self._pos, SO3.quaternion(SO3.set_mat(self._rot))
+        return self._pos, SO3.quaternion(SO3.set_mat(self._rot, self.lib))
 
     @staticmethod
-    def eye():
-        return SE3(identity(3), zeros(3)) 
+    def eye(LIB = 'numpy'):
+        return SE3(identity(3), zeros(3), LIB) 
 
     def inv(self):
-        return SE3(self._rot.transpose(), -self._rot.transpose() @ self._pos)
+        return SE3(self._rot.transpose(), -self._rot.transpose() @ self._pos, self.lib)
 
     def mat_inv(self):
         mat = identity(4, self.lib)
@@ -70,11 +78,11 @@ class SE3(LieAbstract):
         return mat
     
     @staticmethod
-    def set_mat_adj(mat = identity(6)):
+    def set_mat_adj(mat = identity(6), LIB = 'numpy'):
         rot = (mat[0:3,0:3] + mat[3:6,3:6]) * 0.5
-        pos = SO3.vee(mat[3:6,0:3] @ rot.transpose())
+        pos = SO3.vee(mat[3:6,0:3] @ rot.transpose(), LIB)
         
-        return SE3(rot, pos)
+        return SE3(rot, pos, LIB)
 
     def mat_inv_adj(self):
         mat = zeros((6,6), self.lib)
@@ -122,6 +130,11 @@ class SE3(LieAbstract):
         '''
         a = vee(hat(a))
         '''
+        if LIB == 'jax':
+            w = SO3.vee(vec_hat[0:3,0:3], LIB)
+            v = vec_hat[0:3,3]
+            return jnp.concatenate((w, v))
+
         vec = zeros(6, LIB)
         
         if(LIB == 'sympy'):
@@ -300,26 +313,25 @@ class SE3(LieAbstract):
         
         return mat
     
-    @staticmethod
+    @staticmethod    
     def hat_adj(vec, LIB = 'numpy'):
+
+        w, v = vec[:3], vec[3:]
+        w_hat = SO3.hat(w, LIB)
+        v_hat = SO3.hat(v, LIB)
+
         if LIB == 'jax':
-            w, v = jnp.split(vec, 2, axis=-1)
-            w_hat = SO3.hat(w, 'jax')
-            v_hat = SO3.hat(v, 'jax')
             mat = jnp.block([
                 [w_hat, jnp.zeros((3, 3), dtype=vec.dtype)],
                 [v_hat, w_hat]
             ])
-            return mat
-
-        mat = zeros((6,6), LIB)
-
-        w_hat = SO3.hat(vec[0:3], LIB)
-        v_hat = SO3.hat(vec[3:6], LIB)
-
-        mat[0:3,0:3] = w_hat
-        mat[3:6,3:6] = w_hat
-        mat[3:6,0:3] = v_hat
+        elif LIB == 'numpy':
+            mat = np.zeros((6, 6))
+            mat[0:3, 0:3] = w_hat
+            mat[3:6, 0:3] = v_hat
+            mat[3:6, 3:6] = w_hat
+        else:
+            raise ValueError(f"Unknown LIB: {LIB}")
 
         return mat
     
@@ -329,10 +341,19 @@ class SE3(LieAbstract):
 
     @staticmethod
     def vee_adj(vec_hat, LIB = 'numpy'):
-        vec = zeros(6, LIB)
+        if LIB == 'jax':
+            w = 0.5 * ( SO3.vee(vec_hat[0:3,0:3], LIB) + SO3.vee(vec_hat[3:6,3:6], LIB) )
+            v = SO3.vee(vec_hat[3:6,0:3], LIB)
+            return jnp.concatenate((w, v))
         
-        vec[0:3] = 0.5*(SO3.vee(vec_hat[0:3,0:3], LIB) + SO3.vee(vec_hat[3:6,3:6], LIB))
-        vec[3:6] = SO3.vee(vec_hat[3:6,0:3], LIB)
+
+        elif LIB == 'numpy':
+            w = 0.5 * (SO3.vee(vec_hat[0:3, 0:3], LIB) + SO3.vee(vec_hat[3:6, 3:6], LIB))
+            v = SO3.vee(vec_hat[3:6, 0:3], LIB)
+            return np.concatenate([w, v])
+
+        else:
+            raise ValueError(f"Unknown LIB: {LIB}")
 
         return vec
     
@@ -388,20 +409,26 @@ class SE3(LieAbstract):
         return mat
 
     @staticmethod
-    def sub_tan_vec(val0, val1, type = 'bframe') -> np.ndarray:
-        vec = np.zeros(6)
+    def sub_tan_vec(val0, val1, type = 'bframe', LIB = 'numpy') -> np.ndarray:
 
-        vec[:3] = SO3.sub_tan_vec(SO3(val0.rot()), SO3(val1.rot()), type)
+        w = SO3.sub_tan_vec(SO3(val0.rot(),LIB), SO3(val1.rot(),LIB), type, LIB)
+
         if type == 'bframe':
-            vec[3:] = val0.rot().transpose() @ (val1.pos() - val0.pos())
+            v = val0.rot().transpose() @ (val1.pos() - val0.pos())
         elif type == 'fframe':
             tmp = (val1.rot() - val0.rot()) @ val0.rot().transpose()
-            vec[3:] = (val1.pos() - val0.pos()) - tmp @ val0.pos()
+            v = (val1.pos() - val0.pos()) - tmp @ val0.pos()
+        
+        if LIB == 'numpy':
+            vec = np.concatenate([w, v])
+        elif LIB == 'jax':
+            vec = jnp.concatenate([w, v])
+
         return vec
     
     def __matmul__(self, rval):
         if isinstance(rval, SE3):
-            return SE3(self._rot @ rval._rot, self._pos + self._rot @ rval._pos)
+            return SE3(self._rot @ rval._rot, self._pos + self._rot @ rval._pos, self.lib)
         elif isinstance(rval, np.ndarray):
             if rval.shape[0] == 3:
                 return self._rot @ rval + self._pos
