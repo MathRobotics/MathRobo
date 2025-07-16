@@ -472,31 +472,52 @@ class SE3(LieAbstract):
     
 class SE3wrench(SE3):
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:
-        mat = np.zeros((6,6))
-        
-        mat[0:3,0:3] = self._rot
-        mat[0:3,3:6] = SO3.hat(self._pos) @ self._rot
-        mat[3:6,3:6] = self._rot
-        
-        return mat
+        if self.lib == 'jax':
+            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
+            mat = jnp.block([
+                [self._rot, SO3.hat(self._pos, self.lib) @ self._rot],
+                [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot]
+            ])
+            return mat
+        elif self.lib == 'numpy':
+            mat = np.zeros((6,6))
+            mat[0:3,0:3] = self._rot
+            mat[0:3,3:6] = SO3.hat(self._pos) @ self._rot
+            mat[3:6,3:6] = self._rot
+            return mat
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
-        mat = np.zeros((6,6), self.lib)
-
-        mat[0:3,0:3] = self._rot
-        mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
-        mat[3:6,3:6] = self._rot
-        
-        return mat
+        if self.lib == 'jax':
+            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
+            mat = jnp.block([
+                [self._rot, jnp.zeros((3, 3), dtype=self._rot.dtype)],
+                [SO3.hat(self._pos, self.lib) @ self._rot, self._rot]
+            ])
+            return mat
+        elif self.lib == 'numpy':
+            mat = np.zeros((6,6))
+            mat[0:3,0:3] = self._rot
+            mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
+            mat[3:6,3:6] = self._rot
+            return mat
 
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        mat = np.zeros((6,6))
-        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
-        mat[3:6,3:6] = SO3.hat(vec[0:3], LIB)
-        mat[0:3,3:6] = SO3.hat(vec[3:6], LIB)
-
-        return mat
+        if LIB == 'jax':
+            mat = jnp.zeros((6, 6), dtype=vec.dtype)
+            mat = jnp.block([
+                [SO3.hat(vec[0:3], LIB), vec[3:6].reshape(3, 1)],
+                [jnp.zeros((3, 3), dtype=vec.dtype), SO3.hat(vec[3:6], LIB)]
+            ])
+            return mat
+        elif LIB == 'numpy':
+            mat = np.zeros((6, 6), dtype=vec.dtype)
+            mat[0:3, 0:3] = SO3.hat(vec[0:3], LIB)
+            mat[0:3, 3:6] = vec[3:6].reshape(3, 1)
+            mat[3:6, 3:6] = SO3.hat(vec[3:6], LIB)
+            return mat
     
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
