@@ -1,6 +1,6 @@
 from typing import TypeVar, Generic
-
 from ..basic import *
+import jax
 
 T = TypeVar('T')
 
@@ -25,29 +25,96 @@ class CMTM(Generic[T]):
         return output_order
         
     def __mat_elem(self, p : int):
-        if p == 0:
-            return self._mat.mat()
-        else:
-            mat = zeros( (self._mat_size, self._mat_size) ) 
-            for i in range(p):
-                mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i]/math.factorial(i))
+        if self._lib == 'jax':
+            def _inv_factorials(p, dtype):
+                return jnp.array([1.0 / math.factorial(i) for i in range(p)], dtype=dtype)
+            
+            dtype = self._vecs[0].dtype
+            inv_fact = _inv_factorials(p, dtype)
 
-            return mat / p
+            # M[0] = base 行列，M[1]..M[p] を順に求める
+            M0 = self._mat.mat(LIB=self._lib)             # 既に jnp.array 前提
+            Ms = jnp.zeros((p + 1, self._mat_size, self._mat_size), dtype).at[0].set(M0)
+
+            def outer_body(k, Ms):
+                def inner_body(i, acc):
+                    Mk_prev = Ms[k - i - 1]               # 既に計算済み
+                    term = Mk_prev @ self._mat.hat(self._vecs[i] * inv_fact[i])
+                    return acc + term
+
+                acc0 = jnp.zeros((self._mat_size, self._mat_size), dtype)
+                tmp  = jax.lax.fori_loop(0, k, inner_body, acc0)
+                Mk   = tmp / k
+                Ms   = Ms.at[k].set(Mk)
+                return Ms
+
+            Ms = jax.lax.fori_loop(1, p + 1, outer_body, Ms)
+            return Ms[p] 
+        elif self._lib == 'numpy':    
+            if p == 0:
+                return self._mat.mat(LIB=self._lib)
+            else:
+                mat = np.zeros( (self._mat_size, self._mat_size) ) 
+                for i in range(p):
+                    mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i]/math.factorial(i))
+
+                return mat / p
         
     def mat(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        
-        mat = identity(self._mat_size * output_order)
+        if self._lib == 'jax':
+            output_order = self.__check_output_order(output_order)
+            msize  = self._mat_size
 
-        tmp = np.zeros((output_order, self._mat_size, self._mat_size))
-        for i in range(output_order):
-            tmp[i] = self.__mat_elem(i)
+            # -------------------------------------------------------
+            # 1) tmp[i] = M(i)   (i = 0 .. p-1) をまとめて計算
+            #    vmap を使うと Python ループが消え GPU でも高速
+            # -------------------------------------------------------
+            tmp = jax.vmap(lambda k: self.__mat_elem(int(k)))(jnp.arange(output_order))
+            # tmp : (output_order, msize, msize)
 
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
+            # -------------------------------------------------------
+            # 2) ブロック行列を組み立てる
+            #    行・列ブロック番号 (row, col) について
+            #         if row >= col :  block = tmp[row - col]
+            #         else           : block = 0
+            # -------------------------------------------------------
+            idx   = jnp.arange(output_order)
+            row   = idx[:, None]           # shape (p,1)
+            col   = idx[None, :]           # shape (1,p)
+            diff  = row - col              # (p,p), 下三角が >=0
+            mask  = diff >= 0              # True → 設定するブロック
 
-        return mat
+            # diff をインデックスにして tmp[diff] を取得
+            diff_clip  = jnp.clip(diff, 0, output_order - 1)      # 負値対策
+            blocks     = tmp[diff_clip]                           # (p,p,msize,msize)
+            zero_block = jnp.zeros_like(tmp[0])
+            blocks     = jnp.where(mask[..., None, None],
+                                blocks,
+                                zero_block)                    # 上三角を 0
+
+            # -------------------------------------------------------
+            # 3) 4 次元 → 2 次元へ reshape
+            #    順序: (row, inner_row, col, inner_col) = (0,2,1,3)
+            # -------------------------------------------------------
+            big_mat = blocks.transpose(0, 2, 1, 3)                # (row, irow, col, icol)
+            big_mat = big_mat.reshape(output_order * msize,
+                                    output_order * msize)
+
+            return big_mat    
+        elif self._lib == 'numpy':
+            output_order = self.__check_output_order(output_order)
+            
+            mat = identity(self._mat_size * output_order)
+
+            tmp = np.zeros((output_order, self._mat_size, self._mat_size))
+            for i in range(output_order):
+                tmp[i] = self.__mat_elem(i)
+
+            for i in range(output_order):
+                for j in range(i, output_order):
+                        mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
+
+            return mat
     
     def __mat_adj_elem(self, p : int):
         if p == 0:
