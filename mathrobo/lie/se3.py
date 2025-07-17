@@ -2,6 +2,7 @@ from .lie_abst import *
 from .so3 import *
 
 from typing import Union, Tuple
+import jax
 
 class SE3(LieAbstract):
     _dof = 6
@@ -466,9 +467,12 @@ class SE3(LieAbstract):
             TypeError("Right operand should be SE3 or numpy.ndarray")
 
     @staticmethod
-    def rand() -> 'SE3':
-        p = np.random.rand(3) 
-        return SE3(SO3.rand().mat(), p)
+    def rand(LIB = 'numpy') -> 'SE3':
+        if LIB == 'jax':
+            p = jax.random.uniform(jax.random.PRNGKey(0), (3,))
+        elif LIB == 'numpy':
+            p = np.random.rand(3) 
+        return SE3(SO3.rand(LIB).mat(), p, LIB)
     
 class SE3wrench(SE3):
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:

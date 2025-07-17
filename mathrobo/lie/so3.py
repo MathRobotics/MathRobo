@@ -2,6 +2,8 @@ from .lie_abst import *
 
 from typing import Union
 
+import jax
+
 class SO3(LieAbstract):
     _dof = 3
     def __init__(self, r = np.identity(3), LIB : str = 'numpy'):
@@ -354,9 +356,14 @@ class SO3(LieAbstract):
 
     @staticmethod
     def rand(LIB : str = 'numpy') -> 'SO3':
-        v = np.random.rand(3) 
-        m = SO3.exp(v)
-        return SO3(m, LIB)
+        if LIB == 'jax':
+            v = jax.random.uniform(jax.random.PRNGKey(0), (3,))
+            m = SO3.exp(v, LIB='jax')
+            return SO3(m, LIB)
+        elif LIB == 'numpy':
+            v = np.random.rand(3) 
+            m = SO3.exp(v)
+            return SO3(m, LIB)
     
 class SO3wrench(SO3):
     @staticmethod
