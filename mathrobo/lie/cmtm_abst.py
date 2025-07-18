@@ -51,7 +51,7 @@ class CMTM(Generic[T]):
             return Ms[p]
         elif self._lib == 'numpy':    
             if p == 0:
-                return self._mat.mat(LIB=self._lib)
+                return self._mat.mat()
             else:
                 mat = np.zeros( (self._mat_size, self._mat_size) ) 
                 for i in range(p):
