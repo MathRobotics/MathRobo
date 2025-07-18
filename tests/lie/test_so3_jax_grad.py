@@ -19,6 +19,6 @@ def test_so3_grad():
     grad_result = grad_func(a)
 
     # Verify the result
-    expected = mr.SO3.hat(vec, 'jax') @ mr.SO3.exp(vec, a, 'jax')
+    expected = mr.SO3.exp(vec, a, 'jax') @ mr.SO3.hat(vec, 'jax')
     
     np.testing.assert_allclose(grad_result, expected, rtol=1e-6, atol=1e-6)
