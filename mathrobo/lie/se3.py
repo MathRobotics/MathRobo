@@ -422,8 +422,7 @@ class SE3(LieAbstract):
         return mat
 
     @staticmethod
-    def sub_tan_vec(val0 : Union[np.ndarray, jnp.ndarray], 
-                    val1 : Union[np.ndarray, jnp.ndarray], 
+    def sub_tan_vec(val0 : 'SE3', val1 : 'SE3', 
                     type : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
 
         w = SO3.sub_tan_vec(SO3(val0.rot(),LIB), SO3(val1.rot(),LIB), type, LIB)
