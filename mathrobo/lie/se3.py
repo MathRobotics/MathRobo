@@ -82,7 +82,7 @@ class SE3(LieAbstract):
     def mat_inv(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':
             mat = jnp.block([
-                [self._rot.transpose() , -self._rot.transpose() @ self._pos],
+                [self._rot.transpose() , (-self._rot.transpose() @ self._pos).reshape(3, 1)],
                 [jnp.zeros((1, 3), dtype=self._rot.dtype), jnp.ones((1, 1), dtype=self._rot.dtype)]
             ])
             return mat
