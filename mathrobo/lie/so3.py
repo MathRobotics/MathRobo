@@ -107,6 +107,8 @@ class SO3(LieAbstract):
 
     @staticmethod
     def set_quaternion(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> 'SO3':
+        assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
+        assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
         return SO3(SO3.quaternion_to_mat(quaternion), LIB)
     
     @staticmethod
@@ -343,6 +345,8 @@ class SO3(LieAbstract):
     
     @staticmethod
     def so3_mul(l_rot : Union[np.ndarray, jnp.ndarray], r_rot : Union[np.ndarray, jnp.ndarray]) -> Union[np.ndarray, jnp.ndarray]:
+        assert isinstance(l_rot, jnp.ndarray) or isinstance(l_rot, np.ndarray), "Input must be a numpy or jax array."
+        assert isinstance(r_rot, jnp.ndarray) or isinstance(r_rot, np.ndarray), "Input must be a numpy or jax array."
         return l_rot @ r_rot
 
     def __matmul__(self, rval):

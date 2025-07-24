@@ -56,6 +56,10 @@ class SE3(LieAbstract):
     @staticmethod
     def set_pos_quaternion(pos: Union[np.ndarray, jnp.ndarray], 
                            quaternion: Union[np.ndarray, jnp.ndarray], LIB: str = 'numpy') -> 'SE3':
+        assert len(pos) == 3, "Position must be a 3-element vector."
+        assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
+        assert isinstance(pos, (np.ndarray, jnp.ndarray)), "Position must be a numpy or jax array."
+        assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
         return SE3(SO3.quaternion_to_mat(quaternion), pos, LIB)
 
     def pos(self ) -> Union[np.ndarray, jnp.ndarray]:
@@ -444,6 +448,10 @@ class SE3(LieAbstract):
                 l_pos : Union[np.ndarray, jnp.ndarray], 
                 r_rot : Union[np.ndarray, jnp.ndarray], 
                 r_pos : Union[np.ndarray, jnp.ndarray]) -> Tuple[Union[np.ndarray, jnp.ndarray], Union[np.ndarray, jnp.ndarray]]:
+        assert isinstance(l_rot, jnp.ndarray) or isinstance(l_rot, np.ndarray), "Input must be a numpy or jax array."
+        assert isinstance(l_pos, jnp.ndarray) or isinstance(l_pos, np.ndarray), "Input must be a numpy or jax array."
+        assert isinstance(r_rot, jnp.ndarray) or isinstance(r_rot, np.ndarray), "Input must be a numpy or jax array."
+        assert isinstance(r_pos, jnp.ndarray) or isinstance(r_pos, np.ndarray), "Input must be a numpy or jax array."
         return SO3.so3_mul(l_rot, r_rot), l_pos + l_rot @ r_pos
     
     def __matmul__(self, rval):
