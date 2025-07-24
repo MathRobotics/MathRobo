@@ -617,7 +617,6 @@ def test_cmtm_so3_multiply_adj():
 
         expected_mat = m1.mat_adj() @ m2.mat_adj()
 
-
         np.testing.assert_allclose(expected_mat, result_mat.mat_adj(), rtol=1e-14, atol=1e-14)
 
 def test_cmtm_so3_multiply_and_vec():

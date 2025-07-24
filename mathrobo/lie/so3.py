@@ -219,7 +219,7 @@ class SO3(LieAbstract):
             A  = jnp.where(a_ == 0.0, 0.0, sa)
             B  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca))
 
-            K = SO3.hat(vec/n, 'jax')
+            K = jnp.where(n == 0.0, jnp.zeros((3,3)), SO3.hat(vec/n, 'jax'))
 
             return I + A * K + B * (K @ K)
         else:
@@ -270,7 +270,7 @@ class SO3(LieAbstract):
             A  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca)/ (n*n))
             B  = jnp.where(a_ == 0.0, 0.0, (a_ - sa) / (n*n*n))
 
-            K = SO3.hat(vec, 'jax')
+            K = jnp.where(n == 0.0, jnp.zeros((3,3)), SO3.hat(vec/n, 'jax'))
 
             return a_*I + A * K + B * (K @ K)
         else:
