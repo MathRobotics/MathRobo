@@ -18,9 +18,7 @@ def run_single_test(n_ctrl=10, D=3, k=5, M=100, tol=1e-4, seed=None):
         print(f"n_ctrl={n_ctrl}, D={D}, k={k}, M={M}, tol={tol}")
         rng = np.random.default_rng(seed)
         ctrl  = rng.standard_normal((n_ctrl, D))
-        knots = np.concatenate((np.zeros(k),
-                                                        np.linspace(0, 1, n_ctrl - k + 1),
-                                                        np.ones(k)))
+        knots = np.linspace(0, 1, M)
 
         curve, jac = mr.build_bspline_model(knots, ctrl, k)
         tq = np.sort(rng.random(M))
