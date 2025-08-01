@@ -137,6 +137,8 @@ class CMTM(Generic[T]):
         size = T.eye().mat().shape[0]
         if mat.shape[0] % size != 0:
             raise TypeError("Matrix size is not same as element matrix")
+        if size == 0:
+            raise TypeError("Element matrix size is zero")
      
         n = int(mat.shape[0] / size)
 
