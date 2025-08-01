@@ -15,8 +15,8 @@ def build_bspline_model(knots, control, degree: int):
         curve(tq, order)  -> (..., D)
         jac  (tq, order)  -> (M*D, n*D)
         """
-        T = np.asarray(knots, float)
-        P = np.asarray(control, float)
+        T = np.asarray(knots, dtype=np.float64)
+        P = np.asarray(control, dtype=np.float64)
         n_ctrl, D = P.shape
         k = degree
 
@@ -28,20 +28,20 @@ def build_bspline_model(knots, control, degree: int):
 
         # basis splines for Jacobian
         I = np.eye(n_ctrl)
-        bases = [BSpline(T, I[i], k) for i in range(n_ctrl)]
+        bases = [BSpline(T, I[i], k, extrapolate=False) for i in range(n_ctrl)]
         bases_der = [[b.derivative(o) if o else b for o in range(k + 1)]
                                  for b in bases]
 
         def curve(tq, order: int = 0):
                 if order < 0 or order > k:
                         raise ValueError(f"order must be 0-{k}")
-                tq = np.asarray(tq, float)
+                tq = np.asarray(tq, dtype=np.float64)
                 return np.column_stack([tbl[order](tq) for tbl in deriv_tbl])
 
         def jac(tq, order: int = 0):
                 if order < 0 or order > k:
                         raise ValueError(f"order must be 0-{k}")
-                tq = np.asarray(tq, float).ravel()
+                tq = np.asarray(tq, dtype=np.float64).ravel()
                 M = tq.size
 
                 # derivative of basis (M, n_ctrl)
@@ -72,18 +72,18 @@ def bspline_curve(knots, control, degree, t, order=0):
         curve_vals : ndarray, shape (len(t), D)
                 Evaluated curve or derivative.
         """
-        T = np.asarray(knots, float)
-        P = np.asarray(control, float)
+        T = np.asarray(knots, dtype=np.float64, copy=False)
+        P = np.asarray(control, dtype=np.float64, copy=False)
         _, D = P.shape
         k = degree
 
         if order < 0 or order > k:
                 raise ValueError(f"order must be between 0 and {k}")
 
-        t = np.asarray(t, float)
+        t = np.asarray(t, dtype=np.float64, copy=False)
         result = []
         for d in range(D):
-                spline = BSpline(T, P[:, d], k)
+                spline = BSpline(T, P[:, d], k, extrapolate=False)
                 if order > 0:
                         spline = spline.derivative(order)
                 result.append(spline(t))
@@ -112,15 +112,15 @@ def bspline_jacobian(knots, n_ctrl, degree, t, order=0):
         J : ndarray, shape (len(t)*D, n_ctrl*D)
                 Jacobian matrix d(Curve)/d(control).
         """
-        T = np.asarray(knots, float)
+        T = np.asarray(knots, dtype=np.float64, copy=False)
         k = degree
 
         if order < 0 or order > k:
                 raise ValueError(f"order must be between 0 and {k}")
 
-        t = np.asarray(t, float).ravel()
+        t = np.asarray(t, dtype=np.float64).ravel()
         I = np.eye(n_ctrl)
-        bases = [BSpline(T, I[i], k) for i in range(n_ctrl)]
+        bases = [BSpline(T, I[i], k, extrapolate=False) for i in range(n_ctrl)]
         B = np.column_stack([
                 (bases[i].derivative(order) if order > 0 else bases[i])(t)
                 for i in range(n_ctrl)

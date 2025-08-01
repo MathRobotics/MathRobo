@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import numpy as np
-
 import mathrobo as mr
 
 # ----------------------------------------------------------------------
@@ -26,8 +25,6 @@ def run_single_test(n_ctrl=10, D=3, k=5, M=100, tol=1e-4, seed=None):
         curve, jac = mr.build_bspline_model(knots, ctrl, k)
         tq = np.sort(rng.random(M))
 
-        print(tq)
-
         for order in range(k+1):
                 J_a = jac(tq, order)
                 J_n = mr.jac_numerical(curve, ctrl, knots, k, tq, order=order)
@@ -39,8 +36,8 @@ def run_single_test(n_ctrl=10, D=3, k=5, M=100, tol=1e-4, seed=None):
 
         for order in range(k+1):
                 p = curve(tq, order)
-                J = jac(tq, order)
-                p_jac = J @ ctrl.flatten()
+                jacob = jac(tq, order)
+                p_jac = jacob @ ctrl.flatten()
                 p_jac = p_jac.reshape(M, D)
                 err = np.linalg.norm(p - p_jac, np.inf)
                 print(f"order {order}: max|Δp| = {err:.2e}")
@@ -49,8 +46,8 @@ def run_single_test(n_ctrl=10, D=3, k=5, M=100, tol=1e-4, seed=None):
 
         for order in range(k+1):
                 p = mr.bspline_curve(knots, ctrl, k, tq, order=order)
-                J = mr.bspline_jacobian(knots, n_ctrl, k, tq, order=order)
-                p_jac = J @ ctrl
+                jacob = mr.bspline_jacobian(knots, n_ctrl, k, tq, order=order)
+                p_jac = jacob @ ctrl
                 err = np.linalg.norm(p - p_jac, np.inf)
                 print(f"order {order}: max|Δp| = {err:.2e}")
                 assert err < tol, f"Jacobian failed at order {order}"
