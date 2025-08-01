@@ -221,7 +221,7 @@ class CMTM(Generic[T]):
             # tentative implementation
             return CMTM.set_mat(type(self._mat), self.mat_inv())
 
-    def __mat_inv_elem(self, p):
+    def __mat_inv_elem(self, p : int):
         if p == 0:
             return self._mat.mat_inv()
         else:
@@ -246,7 +246,7 @@ class CMTM(Generic[T]):
 
         return mat
     
-    def __mat_inv_adj_elem(self, p):
+    def __mat_inv_adj_elem(self, p : int):
         if p == 0:
             return self._mat.mat_inv_adj()
         else:
@@ -291,7 +291,7 @@ class CMTM(Generic[T]):
         return CMTM.__hat_func(T.hat_adj, vecs)
 
     @staticmethod
-    def __vee_func(dof, size, vee, mat):
+    def __vee_func(dof, size : int, vee, mat):
         '''
         dof : dof of lie group
         size : size of matrix
