@@ -297,6 +297,8 @@ class CMTM(Generic[T]):
         size : size of matrix
         vee : vee function
         '''
+        if size == 0:
+            raise TypeError("Element matrix size is zero")
         n = dof
         m = int(mat.shape[0] / size)
         vecs = np.zeros((m,n))
