@@ -366,11 +366,9 @@ class CMTM(Generic[T]):
         '''
         Convert matrix the pseudo tangent vector to tangent vector.
         '''
-        k = 1
         mat = np.zeros((dof*output_order, dof*output_order))
         for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) / k
-            k = k * (i + 1)
+            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) / math.factorial(i)
         return mat
 
     @staticmethod
@@ -378,11 +376,9 @@ class CMTM(Generic[T]):
         '''
         Convert the tangent vector to pseudo tangent vector.
         '''
-        k = 1
         mat = np.zeros((dof*output_order, dof*output_order))
         for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * k
-            k = k * (i + 1)
+            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * math.factorial(i)
         return mat
 
     def tan_map(self, output_order = None):
