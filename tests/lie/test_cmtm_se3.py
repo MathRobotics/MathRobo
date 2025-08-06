@@ -385,28 +385,31 @@ def test_cmtm_se3_ptan_to_tan():
 
     for i in range(n):
         se3 = mr.SE3.rand()
-        vel = np.random.rand(i,3)
+        vel = np.random.rand(i,6)
 
         res = mr.CMTM[mr.SE3](se3, vel)
-        
-        mat = np.eye(3)
+
+        mat = np.eye(6)
 
         for j in range(i):
-            np.testing.assert_allclose(res.ptan_to_tan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
-            mat = mat / (j+1)
+            mat = np.eye(6) / math.factorial(j)
+            np.testing.assert_allclose(res.ptan_to_tan(6, i)[6*j:6*(j+1),6*j:6*(j+1)], mat, rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_tan_to_ptan():
     n = 5
 
     for i in range(n):
         se3 = mr.SE3.rand()
-        vel = np.random.rand(i,3)
+        vel = np.random.rand(i,6)
 
         res = mr.CMTM[mr.SE3](se3, vel)
         
-        mat = np.eye(3)
+        mat = np.eye(6)
 
         for j in range(i):
+            mat = np.eye(6) * math.factorial(j)
+            np.testing.assert_allclose(res.tan_to_ptan(6, i)[6*j:6*(j+1),6*j:6*(j+1)], mat, rtol=1e-15, atol=1e-15)
+
 def test_cmtm_se3_tan_to_ptan_inv():
     n = 5
 
