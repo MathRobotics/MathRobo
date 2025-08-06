@@ -200,11 +200,12 @@ class CMTM(Generic[T]):
         
     def tan_vecs(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        v = self.ptan_vecs(output_order)
-        p = 1
+        v = np.zeros((output_order-1, self._dof))
         for i in range(output_order-1):
-            v[i] = v[i] / p
-            p = p * (i + 1)
+            v[i] = self._vecs[i]
+            for j in range(i):
+                v[i] += self._mat.hat_adj(self._vecs[j]) @ self._vecs[i-j-1]
+            v[i] = v[i] / (math.factorial(i))
         return v
     
     def tan_vecs_flatten(self, output_order = None):
@@ -376,9 +377,9 @@ class CMTM(Generic[T]):
         '''
         Convert the tangent vector to pseudo tangent vector.
         '''
-        mat = np.zeros((dof*output_order, dof*output_order))
+        mat = np.eye((dof*output_order))
         for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) * math.factorial(i)
+            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] *= math.factorial(i)
         return mat
 
     def tan_map(self, output_order = None):
