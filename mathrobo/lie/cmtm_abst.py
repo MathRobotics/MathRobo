@@ -367,9 +367,9 @@ class CMTM(Generic[T]):
         '''
         Convert matrix the pseudo tangent vector to tangent vector.
         '''
-        mat = np.zeros((dof*output_order, dof*output_order))
+        mat = np.eye((dof*output_order))
         for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] = identity(dof) / math.factorial(i)
+            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] /= math.factorial(i)
         return mat
 
     @staticmethod
