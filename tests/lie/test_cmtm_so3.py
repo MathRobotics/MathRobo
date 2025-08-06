@@ -441,6 +441,18 @@ def test_cmtm_so3_tan_to_ptan():
             np.testing.assert_allclose(res.tan_to_ptan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
             mat = mat * (j+1)
 
+def test_cmtm_so3_tan_to_ptan_inv():
+    n = 5
+
+    for i in range(n):
+        so3 = mr.SO3.rand()
+        vel = np.random.rand(i,3)
+
+        res = mr.CMTM[mr.SO3](so3, vel)
+
+        np.testing.assert_allclose(res.tan_to_ptan(3, i) @ res.ptan_to_tan(3, i), np.eye(3*(i)), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(res.ptan_to_tan(3, i) @ res.tan_to_ptan(3, i), np.eye(3*(i)), rtol=1e-15, atol=1e-15)
+
 def test_cmtm_so3_tan_map():
     so3 = mr.SO3.rand()
     
