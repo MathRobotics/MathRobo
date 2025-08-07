@@ -481,6 +481,9 @@ class SE3(LieAbstract):
             p = np.random.rand(3) 
         return SE3(SO3.rand(LIB).mat(), p, LIB)
     
+    def __repr__(self):
+        return f"SE3(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
+
 class SE3wrench(SE3):
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':

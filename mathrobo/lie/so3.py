@@ -367,6 +367,9 @@ class SO3(LieAbstract):
             v = np.random.rand(3) 
             m = SO3.exp(v)
             return SO3(m, LIB)
+        
+    def __repr__(self):
+        return f"SO3(\nrot=\n{self._rot},\nLIB='{self.lib}')"
     
 class SO3wrench(SO3):
     @staticmethod
