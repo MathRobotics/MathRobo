@@ -389,6 +389,39 @@ class CMTM(Generic[T]):
     def tan_map_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
         return self.ptan_map_inv(output_order) @ self.tan_to_ptan(self._mat_adj_size, output_order)
+    
+    def __tangent_mat_elem(self, i : int, j : int):
+        mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) )
+        if i == 0:
+            return np.eye( self._mat_adj_size ) 
+        if i == j:
+            return np.eye( self._mat_adj_size ) / j
+        else:
+            for k in range(i-j):
+                if k > 0:
+                    # no solution which is correct
+                    mat = mat - self._mat.hat_adj(self._vecs[k]/k) @ self.__tangent_mat_elem(i-k-1, j) 
+                    # mat = mat - self._mat.hat_adj(self._vecs[k]/math.factorial(k)) @ self.__tangent_mat_elem(i-k-1, j) 
+                else:
+                    mat = mat - self._mat.hat_adj(self._vecs[k]) @ self.__tangent_mat_elem(i-k-1, j)
+            return mat / i
+
+    def tangent_mat(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        mat = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
+
+        for i in range(output_order):
+            for j in range(i+1):
+                mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_elem(i, j)
+                if j > 1:
+                    # no solution which is correct
+                    mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] *= 1/(j-1)
+
+        return mat
+
+    def tangent_mat_inv(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        return np.linalg.inv(self.tangent_mat(output_order))
 
     @staticmethod
     def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
