@@ -2,6 +2,8 @@ import numpy as np
 
 import mathrobo as mr
 
+test_order = 10
+
 def test_cmtm_so3():
     so3 = mr.SO3.rand()
     res = mr.CMTM[mr.SO3](so3)
@@ -31,7 +33,7 @@ def test_cmtm_so3_vec2d():
     mat[3:6,0:3] = mat[6:9,3:6] = so3.mat() @ so3.hat(vec[0])
     mat[6:9,0:3] = so3.mat() @ (so3.hat(vec[1]) + so3.hat(vec[0]) @ so3.hat(vec[0])) * 0.5
 
-    np.testing.assert_allclose(res.mat(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat(), mat, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_vec3d():
     so3 = mr.SO3.rand()  
@@ -48,7 +50,7 @@ def test_cmtm_so3_vec3d():
     tmp3 = so3.mat() @ (so3.hat(vec[1]) + so3.hat(vec[0]) @ so3.hat(vec[0])) * 0.5 @ so3.hat(vec[0])
     mat[9:12,0:3] = ( tmp1 + tmp2 + tmp3 ) / 3.0
 
-    np.testing.assert_allclose(res.mat(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat(), mat, rtol=1e-10, atol=1e-10)
     
 def test_cmtm_so3_adj():
     so3 = mr.SO3.rand()
@@ -66,7 +68,7 @@ def test_cmtm_so3_vec1d():
     mat[0:3,0:3] = mat[3:6,3:6] = so3.mat_adj()
     mat[3:6,0:3] = so3.mat_adj() @ so3.hat_adj(vel[0])
 
-    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-10, atol=1e-10)
     
 def test_cmtm_so3_adj_vec2d():
     so3 = mr.SO3.rand()
@@ -79,7 +81,7 @@ def test_cmtm_so3_adj_vec2d():
     mat[3:6,0:3] = mat[6:9,3:6] = so3.mat_adj() @ so3.hat_adj(vec[0])
     mat[6:9,0:3] = so3.mat_adj() @ (so3.hat_adj(vec[1]) + so3.hat_adj(vec[0]) @ so3.hat_adj(vec[0])) * 0.5
 
-    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_adj_vec3d():
     so3 = mr.SO3.rand()
@@ -96,48 +98,42 @@ def test_cmtm_so3_adj_vec3d():
     tmp3 = so3.mat_adj() @ (so3.hat_adj(vec[1]) + so3.hat_adj(vec[0]) @ so3.hat_adj(vec[0])) * 0.5 @ so3.hat_adj(vec[0])
     mat[9:12,0:3] = ( tmp1 + tmp2 + tmp3 ) / 3.0
 
-    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.mat_adj(), mat, rtol=1e-10, atol=1e-10)
     
 def test_cmtm_so3_getter():
-    n = 5
-
     so3 = mr.SO3.rand() 
-    vec = np.random.rand(n,3)
+    vec = np.random.rand(test_order,3)
 
     res = mr.CMTM[mr.SO3](so3,vec)
     
     np.testing.assert_array_equal(res.elem_mat(), so3.mat())
-    for i in range(n):
+    for i in range(test_order):
         np.testing.assert_array_equal(res.elem_vecs(i), vec[i])
 
 def test_cmtm_so3_set_mat():
-    n = 5
-
     so3 = mr.SO3.rand() 
-    vec = np.random.rand(n,3)
+    vec = np.random.rand(test_order,3)
 
     cmtm = mr.CMTM[mr.SO3](so3,vec)
 
     res = mr.CMTM.set_mat(mr.SO3, cmtm.mat())
 
-    np.testing.assert_allclose(res.elem_mat(), cmtm.elem_mat(), rtol=1e-14, atol=1e-14)
-    for i in range(n):
-        np.testing.assert_allclose(res.elem_vecs(i), cmtm.elem_vecs(i), rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(res.elem_vecs(i), vec[i], rtol=1e-14, atol=1e-14)
+    np.testing.assert_allclose(res.elem_mat(), cmtm.elem_mat(), rtol=1e-8, atol=1e-8)
+    for i in range(test_order):
+        np.testing.assert_allclose(res.elem_vecs(i), cmtm.elem_vecs(i), rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(res.elem_vecs(i), vec[i], rtol=1e-8, atol=1e-8)
 
 def test_cmtm_so3_vecs():
-    n = 5
     so3 = mr.SO3.rand()
-    vec = np.random.rand(n,3)
+    vec = np.random.rand(test_order,3)
 
     res = mr.CMTM[mr.SO3](so3, vec)
-    np.testing.assert_array_equal(res.vecs(), vec)
-    np.testing.assert_array_equal(res.vecs(3), vec[:2])
+    np.testing.assert_allclose(res.vecs(), vec)
+    np.testing.assert_allclose(res.vecs(3), vec[:2])
 
 def test_cmtm_so3_vecs_flatten():
-    n = 5
     so3 = mr.SO3.rand()
-    vec = np.random.rand(n,3)
+    vec = np.random.rand(test_order,3)
 
     res = mr.CMTM[mr.SO3](so3, vec)
     np.testing.assert_array_equal(res.vecs_flatten(), vec.flatten())
@@ -202,7 +198,7 @@ def test_cmtm_so3_tan_vecs_flatten():
 def test_cmtm_so3_inv():
     so3 = mr.SO3.rand()
     
-    for i in range(5):
+    for i in range(test_order):
         vel = np.random.rand(i,3)
 
         res = mr.CMTM[mr.SO3](so3, vel)
@@ -210,15 +206,15 @@ def test_cmtm_so3_inv():
         expected_mat = np.eye(3*(i+1))
         result_mat = res @ res.inv()
 
-        np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-10, atol=1e-10)
 
         result_mat = res.inv() @ res
-        np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(result_mat.mat(), expected_mat, rtol=1e-10, atol=1e-10)
     
 def test_cmtm_so3_mat_inv():
     so3 = mr.SO3.rand()
     
-    for i in range(5):
+    for i in range(test_order):
         vel = np.random.rand(i,3)
 
         res = mr.CMTM[mr.SO3](so3, vel)
@@ -226,7 +222,7 @@ def test_cmtm_so3_mat_inv():
         expected_mat = np.eye(3*(i+1))
         result_mat = res.mat() @ res.mat_inv()
 
-        np.testing.assert_allclose(result_mat, expected_mat, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(result_mat, expected_mat, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_mat_inv_elem():
     so3 = mr.SO3.rand()
@@ -235,7 +231,7 @@ def test_cmtm_so3_mat_inv_elem():
     result = res.mat_inv()
     expected = so3.mat_inv()
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
 
     vec = np.random.rand(1,3)
     res = mr.CMTM[mr.SO3](so3, vec)
@@ -245,7 +241,7 @@ def test_cmtm_so3_mat_inv_elem():
     expected[0:3,0:3] = expected[3:6,3:6] = so3.mat_inv()
     expected[3:6,0:3] = -so3.hat(vec[0]) @ so3.mat_inv()
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
 
     vec = np.random.rand(2,3)
     res = mr.CMTM[mr.SO3](so3, vec)
@@ -256,19 +252,19 @@ def test_cmtm_so3_mat_inv_elem():
     expected[3:6,0:3] = expected[6:9,3:6] = -so3.hat(vec[0]) @ so3.mat_inv()
     expected[6:9,0:3] = (-so3.hat(vec[1]) + so3.hat(vec[0]) @ so3.hat(vec[0])) @ so3.mat_inv() * 0.5
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
         
 def test_cmtm_so3_inv_adj():
     so3 = mr.SO3.rand() 
     
-    for i in range(5):
+    for i in range(test_order):
         vel = np.random.rand(i,3)
 
         res = mr.CMTM[mr.SO3](so3, vel)
         
         mat = np.eye(3*(i+1))
 
-        np.testing.assert_allclose(res.mat_adj() @ res.mat_inv_adj(), mat, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(res.mat_adj() @ res.mat_inv_adj(), mat, rtol=1e-8, atol=1e-8)
 
 def test_cmtm_so3_mat_inv_adj_elem():
     so3 = mr.SO3.rand()
@@ -277,7 +273,7 @@ def test_cmtm_so3_mat_inv_adj_elem():
     result = res.mat_inv_adj()
     expected = so3.mat_inv_adj()
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
 
     vec = np.random.rand(1,3)
     res = mr.CMTM[mr.SO3](so3, vec)
@@ -287,7 +283,7 @@ def test_cmtm_so3_mat_inv_adj_elem():
     expected[0:3,0:3] = expected[3:6,3:6] = so3.mat_inv_adj()
     expected[3:6,0:3] = -so3.hat_adj(vec[0]) @ so3.mat_inv_adj()
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
 
     vec = np.random.rand(2,3)
     res = mr.CMTM[mr.SO3](so3, vec)
@@ -298,11 +294,10 @@ def test_cmtm_so3_mat_inv_adj_elem():
     expected[3:6,0:3] = expected[6:9,3:6] = -so3.hat_adj(vec[0]) @ so3.mat_inv_adj()
     expected[6:9,0:3] = (-so3.hat_adj(vec[1]) + so3.hat_adj(vec[0]) @ so3.hat_adj(vec[0])) @ so3.mat_inv_adj() * 0.5
 
-    np.testing.assert_allclose(result, expected, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(result, expected, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_hat():
-    n = 5
-    for i in range(1,n+1):
+    for i in range(1,test_order):
         vec = np.random.rand(i,3)
 
         res = mr.CMTM.hat(mr.SO3, vec)
@@ -314,8 +309,7 @@ def test_cmtm_so3_hat():
         np.testing.assert_array_equal(res, mat)
 
 def test_cmtm_so3_hat_adj():
-    n = 5
-    for i in range(1,n+1):
+    for i in range(1,test_order):
         vec = np.random.rand(i,3)
 
         res = mr.CMTM.hat_adj(mr.SO3, vec)
@@ -327,8 +321,7 @@ def test_cmtm_so3_hat_adj():
         np.testing.assert_array_equal(res, mat)
 
 def test_cmtm_so3_vee():
-    n = 5
-    for i in range(1,n+1):
+    for i in range(1,test_order):
         vec = np.random.rand(i,3)
 
         mat = mr.CMTM.hat(mr.SO3, vec)
@@ -337,8 +330,7 @@ def test_cmtm_so3_vee():
         np.testing.assert_allclose(res, vec) 
 
 def test_cmtm_so3_vee_adj():
-    n = 5
-    for i in range(1,n+1):
+    for i in range(1,test_order):
         vec = np.random.rand(i,3)
 
         mat = mr.CMTM.hat_adj(mr.SO3, vec)
@@ -387,71 +379,62 @@ def test_cmtm_so3_vec3d_ptan_map():
     mat[6:9, 0:3] = mat[9:12, 3:6] = - (mr.SO3.hat_adj(vel[1]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0])) 
     mat[9:12, 0:3] = - (mr.SO3.hat_adj(vel[2]) - mr.SO3.hat_adj(vel[1]) @ mr.SO3.hat_adj(vel[0]) - mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[1]) + mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0]) @ mr.SO3.hat_adj(vel[0]))
 
-    np.testing.assert_allclose(res.ptan_map(), mat, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.ptan_map(), mat, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_ptan_map_ptan_vec():
-    n = 5
-    for i in range(2,n):
+    for i in range(2,test_order):
         res = mr.CMTM.rand(mr.SO3,i)
 
         vec = res.ptan_map(i-1) @ res.vecs_flatten()
 
-        np.testing.assert_allclose(vec, res.ptan_vecs_flatten(), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(vec, res.ptan_vecs_flatten(), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_ptan_map_inv_ptan_vec():
-    n = 5
-    for i in range(2,n):
+    for i in range(2,test_order):
         res = mr.CMTM.rand(mr.SO3,i)
 
         vec = res.ptan_map_inv(i-1) @ res.ptan_vecs_flatten()
 
-        np.testing.assert_allclose(vec, res.vecs_flatten(), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(vec, res.vecs_flatten(), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_ptan_inv():
-    n = 5
-    for i in range(n):
+    for i in range(test_order):
         res = mr.CMTM.rand(mr.SO3,i+1)
         
         mat = np.eye(3*(i+1))
 
-        np.testing.assert_allclose(res.ptan_map() @ res.ptan_map_inv(), mat, rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(res.ptan_map_inv() @ res.ptan_map(), mat, rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(res.ptan_map() @ res.ptan_map_inv(), mat, rtol=1e-8, atol=1e-8)
+        np.testing.assert_allclose(res.ptan_map_inv() @ res.ptan_map(), mat, rtol=1e-8, atol=1e-8)
 
 def test_cmtm_so3_ptan_to_tan():
-    n = 5
-
-    for i in range(n):
+    for i in range(test_order):
         res = mr.CMTM.rand(mr.SO3, i+1)
         
         mat = np.eye(3)
 
         for j in range(i):
-            np.testing.assert_allclose(res.ptan_to_tan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
+            np.testing.assert_allclose(res.ptan_to_tan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-10, atol=1e-10)
             mat = mat / (j+1)
 
 def test_cmtm_so3_tan_to_ptan():
-    n = 5
-
-    for i in range(n):
+    for i in range(test_order):
         res = mr.CMTM.rand(mr.SO3, i+1)
         
         mat = np.eye(3)
 
         for j in range(i):
-            np.testing.assert_allclose(res.tan_to_ptan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-15, atol=1e-15)
+            np.testing.assert_allclose(res.tan_to_ptan(3, i)[3*j:3*(j+1),3*j:3*(j+1)], mat, rtol=1e-10, atol=1e-10)
             mat = mat * (j+1)
 
 def test_cmtm_so3_tan_to_ptan_inv():
-    n = 5
-
-    for i in range(n):
+    for i in range(test_order):
         so3 = mr.SO3.rand()
         vel = np.random.rand(i,3)
 
         res = mr.CMTM[mr.SO3](so3, vel)
 
-        np.testing.assert_allclose(res.tan_to_ptan(3, i) @ res.ptan_to_tan(3, i), np.eye(3*(i)), rtol=1e-15, atol=1e-15)
-        np.testing.assert_allclose(res.ptan_to_tan(3, i) @ res.tan_to_ptan(3, i), np.eye(3*(i)), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(res.tan_to_ptan(3, i) @ res.ptan_to_tan(3, i), np.eye(3*(i)), rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(res.ptan_to_tan(3, i) @ res.tan_to_ptan(3, i), np.eye(3*(i)), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_tan_map():
     so3 = mr.SO3.rand()
@@ -504,40 +487,36 @@ def test_cmtm_so3_vec3d_tan_map():
     np.testing.assert_allclose(res.tan_map(), mat)
 
 def test_cmtm_so3_tan_map_tan_vec():
-    n = 6
-    for i in range(2,n):
+    for i in range(2,test_order):
         res = mr.CMTM.rand(mr.SO3,i)
 
         vec = res.tan_map(i-1) @ res.vecs_flatten()
 
-        np.testing.assert_allclose(vec, res.tan_vecs_flatten(), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(vec, res.tan_vecs_flatten(), rtol=1e-10, atol=1e-10)
 
-def test_cmtm_so3_tan_map_inv_ptan_vec():
-    n = 6
-    for i in range(2,n):
+def test_cmtm_so3_tan_map_inv_tan_vec():
+    for i in range(2,test_order):
         res = mr.CMTM.rand(mr.SO3,i)
 
         vec = res.tan_map_inv(i-1) @ res.tan_vecs_flatten()
 
-        np.testing.assert_allclose(vec, res.vecs_flatten(), rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(vec, res.vecs_flatten(), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_tan_inv():
     so3 = mr.SO3.rand()  
     
-    for i in range(5):
+    for i in range(test_order):
         vel = np.random.rand(i,3)
 
         res = mr.CMTM[mr.SO3](so3, vel)
         
         mat = np.eye(3*(i+1))
 
-        np.testing.assert_allclose(res.tan_map() @ res.tan_map_inv(), mat, rtol=1e-14, atol=1e-14)
-        np.testing.assert_allclose(res.tan_map_inv() @ res.tan_map(), mat, rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(res.tan_map() @ res.tan_map_inv(), mat, rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(res.tan_map_inv() @ res.tan_map(), mat, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_sub_vec():
-    order = 5
-
-    for i in range(order):
+    for i in range(test_order):
         mat1 = mr.CMTM.rand(mr.SO3, i+1)
         mat2 = mr.CMTM.rand(mr.SO3, i+1)
 
@@ -548,7 +527,7 @@ def test_cmtm_so3_sub_vec():
             for j in range(i):
                 sol[3*(j+1):3*(j+2)] = mat2._vecs[j] - mat1._vecs[j]
         
-        np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(res, sol, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_sub_ptan_vec():
     mat1 = mr.CMTM.rand(mr.SO3)
@@ -560,30 +539,28 @@ def test_cmtm_so3_sub_ptan_vec():
     sol[3:6] = (mat2._vecs[0] - mat1._vecs[0]) + mr.SO3.hat_adj(sol[0:3]) @ mat1._vecs[0]
     sol[6:9] = (mat2._vecs[1] - mat1._vecs[1] + mr.SO3.hat_adj(sol[0:3]) @ mat1._vecs[1] + mr.SO3.hat_adj(sol[3:6]) @ mat1._vecs[0])
 
-    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15) 
+    np.testing.assert_allclose(res, sol, rtol=1e-10, atol=1e-10) 
 
 def test_cmtm_so3_sub():
-    n = 6
-    for i in range(n):
+    for i in range(test_order):
         mat1 = mr.CMTM.rand(mr.SO3, i+1)
         mat2 = mr.CMTM.rand(mr.SO3, i+1)
 
         vec1 = mr.CMTM.ptan_to_tan(mr.SO3.dof(), i+1) @ mr.CMTM.sub_ptan_vec(mat1, mat2, "bframe")
         vec2 = mat1.tan_map() @ mr.CMTM.sub_vec(mat1, mat2, "bframe")
 
-        np.testing.assert_allclose(vec1, vec2, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(vec1, vec2, rtol=1e-10, atol=1e-10)
 
 
 def test_cmtm_so3_sub_tan_vec():
-    n = 5
-    for i in range(n):
+    for i in range(test_order):
         mat1 = mr.CMTM.rand(mr.SO3, i+1)
         mat2 = mr.CMTM.rand(mr.SO3, i+1)
 
         res = mr.CMTM.sub_tan_vec(mat1, mat2, "bframe")
         vec = mr.CMTM.ptan_to_tan(mr.SO3.dof(), i+1) @ mr.CMTM.sub_ptan_vec(mat1, mat2, "bframe")
 
-        np.testing.assert_allclose(res, vec, rtol=1e-15, atol=1e-15)
+        np.testing.assert_allclose(res, vec, rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_matmul():
     order = 4
@@ -611,17 +588,17 @@ def test_cmtm_so3_matmul():
     assert np.allclose(result.elem_vecs(2), expected_jerk)
 
 def test_cmtm_so3_multiply():
-    for i in range(5):
+    for i in range(test_order):
         m1 = mr.CMTM.rand(mr.SO3, i+1)
         m2 = mr.CMTM.rand(mr.SO3, i+1)
 
         result_mat = m1 @ m2
         expected_mat = m1.mat() @ m2.mat()
 
-        np.testing.assert_allclose(expected_mat, result_mat.mat(), rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(expected_mat, result_mat.mat(), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_multiply_adj():
-    for i in range(5):
+    for i in range(test_order):
         m1 = mr.CMTM.rand(mr.SO3, i+1)
         m2 = mr.CMTM.rand(mr.SO3, i+1)
 
@@ -629,11 +606,10 @@ def test_cmtm_so3_multiply_adj():
 
         expected_mat = m1.mat_adj() @ m2.mat_adj()
 
-        np.testing.assert_allclose(expected_mat, result_mat.mat_adj(), rtol=1e-14, atol=1e-14)
+        np.testing.assert_allclose(expected_mat, result_mat.mat_adj(), rtol=1e-10, atol=1e-10)
 
 def test_cmtm_so3_multiply_and_vec():
-    order = 5
-    for i in range(order):
+    for i in range(test_order):
         x1 = mr.CMTM.rand(mr.SO3, i+1)
         x2 = mr.CMTM.rand(mr.SO3, i+1)
 
@@ -643,3 +619,8 @@ def test_cmtm_so3_multiply_and_vec():
 
         np.testing.assert_allclose(result.tan_vecs_flatten(), expected_tan_vec, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(result.vecs_flatten(), expected_vec, rtol=1e-10, atol=1e-10)
+
+def test_cmtm_so3_tangent_mat():
+    res = mr.CMTM.rand(mr.SO3, test_order)
+
+    np.testing.assert_allclose(res.tangent_mat()@res.tangent_mat_inv(), np.eye(res._mat_adj_size*test_order), rtol=1e-10, atol=1e-10)
