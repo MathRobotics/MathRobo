@@ -477,8 +477,5 @@ class CMTM(Generic[T]):
         else:
             TypeError("Right operand should be CMTM or numpy.ndarray")
 
-    def print(self):
-        print("mat")
-        print(self._mat.mat())
-        print("vecs")
-        print(self._vecs)
+    def __repr__(self):
+        return f"CMTM(\nelem_mat=\n{self._mat},\nelem_vecs=\n{self._vecs},\nLIB='{self._lib}')"
