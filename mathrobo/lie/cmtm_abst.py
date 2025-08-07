@@ -324,7 +324,7 @@ class CMTM(Generic[T]):
         else:
             mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
             for i in range(p):
-                mat = mat - self.__ptan_map_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i])
+                mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__ptan_map_elem(p-(i+1))
             return mat
 
     def ptan_map(self, output_order = None):
