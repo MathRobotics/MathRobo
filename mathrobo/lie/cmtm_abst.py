@@ -399,9 +399,7 @@ class CMTM(Generic[T]):
         else:
             for k in range(i-j):
                 if k > 0:
-                    # no solution which is correct
-                    mat = mat - self._mat.hat_adj(self._vecs[k]/k) @ self.__tangent_mat_elem(i-k-1, j) 
-                    # mat = mat - self._mat.hat_adj(self._vecs[k]/math.factorial(k)) @ self.__tangent_mat_elem(i-k-1, j) 
+                    mat = mat - self._mat.hat_adj(self._vecs[k]/math.factorial(k)) @ self.__tangent_mat_elem(i-k-1, j) 
                 else:
                     mat = mat - self._mat.hat_adj(self._vecs[k]) @ self.__tangent_mat_elem(i-k-1, j)
             return mat / i
@@ -414,8 +412,7 @@ class CMTM(Generic[T]):
             for j in range(i+1):
                 mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_elem(i, j)
                 if j > 1:
-                    # no solution which is correct
-                    mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] *= 1/(j-1)
+                    mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] *= 1/math.factorial(j-1)
 
         return mat
 
