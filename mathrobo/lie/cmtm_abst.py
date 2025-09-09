@@ -22,6 +22,8 @@ class CMTM(Generic[T]):
             output_order = self._n
         if output_order > self._n:
             raise TypeError("Output order should be less than or equal to the order of CMTM")
+        if output_order < 0:
+            output_order = self._n + output_order
         return output_order
         
     def __mat_elem(self, p : int):
