@@ -550,6 +550,28 @@ class SE3wrench(SE3):
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SE3.exp_integ_adj(vec, a, LIB).transpose()
     
+    @staticmethod
+    def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+
+        w, v = vec[:3], vec[3:]
+        w_hat = SO3.hat(w, LIB)
+        v_hat = SO3.hat(v, LIB)
+
+        if LIB == 'jax':
+            mat = jnp.block([
+                [w_hat, v_hat],
+                [jnp.zeros((3, 3), dtype=vec.dtype), w_hat]
+            ])
+        elif LIB == 'numpy':
+            mat = np.zeros((6, 6))
+            mat[0:3, 0:3] = w_hat
+            mat[0:3, 3:6] = v_hat
+            mat[3:6, 3:6] = w_hat
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy', 'jax'.")
+
+        return mat
+    
 '''
     Khalil, et al. 1995
 '''
