@@ -516,31 +516,6 @@ class SE3wrench(SE3):
             mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
             mat[3:6,3:6] = self._rot
             return mat
-
-    @staticmethod
-    def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if LIB == 'jax':
-            mat = jnp.zeros((6, 6), dtype=vec.dtype)
-            mat = jnp.block([
-                [SO3.hat(vec[0:3], LIB), vec[3:6].reshape(3, 1)],
-                [jnp.zeros((3, 3), dtype=vec.dtype), SO3.hat(vec[3:6], LIB)]
-            ])
-            return mat
-        elif LIB == 'numpy':
-            mat = np.zeros((6, 6), dtype=vec.dtype)
-            mat[0:3, 0:3] = SO3.hat(vec[0:3], LIB)
-            mat[0:3, 3:6] = vec[3:6].reshape(3, 1)
-            mat[3:6, 3:6] = SO3.hat(vec[3:6], LIB)
-            return mat
-    
-    @staticmethod
-    def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        mat = np.zeros((6,6))
-        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
-        mat[0:3,3:6] = SO3.hat(vec[3:6], LIB)
-        mat[3:6,0:3] = SO3.hat(vec[3:6], LIB)
-
-        return -mat
     
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -571,6 +546,15 @@ class SE3wrench(SE3):
             raise ValueError("Unsupported library. Choose 'numpy', 'jax'.")
 
         return mat
+    
+    @staticmethod
+    def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        mat = np.zeros((6,6))
+        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+        mat[0:3,3:6] = SO3.hat(vec[3:6], LIB)
+        mat[3:6,0:3] = SO3.hat(vec[3:6], LIB)
+
+        return -mat
     
 '''
     Khalil, et al. 1995
