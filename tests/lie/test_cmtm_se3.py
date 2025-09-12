@@ -329,6 +329,21 @@ def test_cmtm_se3_vee_adj():
 
         np.testing.assert_allclose(res, vec) 
 
+def test_cmtm_se3_hat_commute_adj():
+    for i in range(1,test_order):
+        vec1 = np.random.rand(i,6)
+        vec2 = np.random.rand(i,6)
+
+        res = mr.CMTM.hat_adj(mr.SE3, vec1) @ vec2.flatten()
+        ans = mr.CMTM.hat_commute_adj(mr.SE3, vec2) @ vec1.flatten()    
+
+        np.testing.assert_allclose(res, ans)
+
+        res = mr.CMTM.hat_adj(mr.SE3wrench, vec1) @ vec2.flatten()
+        ans = mr.CMTM.hat_commute_adj(mr.SE3wrench, vec2) @ vec1.flatten()    
+
+        np.testing.assert_allclose(res, ans)
+
 def test_cmtm_se3_ptan_map():
     se3 = mr.SE3.rand()
     

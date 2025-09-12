@@ -224,7 +224,24 @@ def test_se3_matmul_vec3d():
     ref = h.rot() @ vec + h.pos()
 
     np.testing.assert_allclose(res, ref, rtol=1e-15, atol=1e-15)
+
+def test_se3_wrench_hat_adj():
+    f = np.random.rand(6)
     
+    hat = -mr.SE3.hat_adj(f).T
+    hat_wrench = mr.SE3wrench.hat_adj(f)
+
+    np.testing.assert_array_equal(hat, hat_wrench)
+
+def test_se3_wrench_commute_adj():
+    f1 = np.random.rand(6)
+    f2 = np.random.rand(6)
+    
+    res1 = mr.SE3wrench.hat_adj(f1) @ f2
+    res2 = mr.SE3wrench.hat_commute_adj(f2) @ f1
+    
+    np.testing.assert_allclose(res1, res2)
+
 def test_se3_jac_lie_wrt_scaler():
     v = np.random.rand(6)
     dv = np.random.rand(6)
