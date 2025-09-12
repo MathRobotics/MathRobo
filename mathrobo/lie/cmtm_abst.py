@@ -318,7 +318,15 @@ class CMTM(Generic[T]):
     
     @staticmethod
     def vee_adj(T, hat_mat):
-        return CMTM.__vee_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)  
+        return CMTM.__vee_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)
+    
+    @staticmethod
+    def hat_commute(T, vecs):
+        return CMTM.__hat_func(T.hat_commute, vecs)
+    
+    @staticmethod
+    def hat_commute_adj(T, vecs):
+        return CMTM.__hat_func(T.hat_commute_adj, vecs)
 
     def __ptan_map_elem(self, p : int):
         if p == 0:
