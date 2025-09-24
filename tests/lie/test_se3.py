@@ -229,15 +229,20 @@ def test_se3_wrench_mat():
     r = mr.SO3.rand().mat()
     p = np.random.rand(3)
 
-    m1 = mr.SE3(r, p).mat_inv_adj().T
-    m2 = mr.SE3wrench(r, p).mat_adj()
+    m1 = mr.SE3(r, p)
+    m2 = mr.SE3wrench(r, p)
 
-    np.testing.assert_allclose(m1, m2, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(m1.mat_inv_adj().T, m2.mat_adj(), rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(m1.mat_adj(), m2.mat_inv_adj().T, rtol=1e-15, atol=1e-15)
 
-    m1 = mr.SE3(r, p).mat_adj()
-    m2 = mr.SE3wrench(r, p).mat_inv_adj().T
+    m3 = mr.SE3.change_class(m2)
+    np.testing.assert_allclose(m3.mat(), m1.mat(), rtol=1e-15, atol=1e-15)
 
-    np.testing.assert_allclose(m1, m2, rtol=1e-15, atol=1e-15)
+    m3 = mr.SE3wrench.change_class(m1)
+    np.testing.assert_allclose(m3.mat(), m2.mat(), rtol=1e-15, atol=1e-15)
+
+    m1.__class__ = mr.SE3wrench
+    np.testing.assert_allclose(m1.mat(), m2.mat(), rtol=1e-15, atol=1e-15)
 
 def test_se3_wrench_hat_adj():
     f = np.random.rand(6)
