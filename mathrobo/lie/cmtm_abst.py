@@ -5,10 +5,12 @@ import jax
 T = TypeVar('T')
 
 class CMTM(Generic[T]):
-    def __init__(self, elem_mat, elem_vecs = np.array([]), LIB = 'numpy'): 
+    def __init__(self, elem_mat : T, elem_vecs : np.ndarray = None, LIB = 'numpy'): 
         '''
         Constructor
         '''
+        if elem_vecs is None:
+            elem_vecs = np.array([])
         self._mat = elem_mat
         self._vecs = elem_vecs
         self._dof = elem_mat.mat_adj().shape[0]
@@ -519,3 +521,11 @@ class CMTM(Generic[T]):
 
     def __repr__(self):
         return f"CMTM(\nelem_mat=\n{self._mat},\nelem_vecs=\n{self._vecs},\nLIB='{self._lib}')"
+    
+    @classmethod
+    def change_elemclass(cls, a : 'CMTM', elem_cls) -> 'CMTM':
+        b = cls.__new__(cls)
+        b.__dict__ = a.__dict__.copy()
+        b_elem_mat = elem_cls.change_class(a._mat)
+        cls.__init__(b, b_elem_mat, a._vecs, a._lib)
+        return b
