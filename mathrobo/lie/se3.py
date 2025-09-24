@@ -516,7 +516,14 @@ class SE3wrench(SE3):
             mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
             mat[3:6,3:6] = self._rot
             return mat
-    
+        
+    def mat_inv_adj(self):
+        mat = np.zeros((6,6))
+        mat[0:3,0:3] = self._rot.transpose()
+        mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos)
+        mat[3:6,3:6] = self._rot.transpose()
+        return mat
+
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SE3.exp_adj(vec, a, LIB).transpose()

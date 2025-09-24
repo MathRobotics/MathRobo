@@ -225,6 +225,20 @@ def test_se3_matmul_vec3d():
 
     np.testing.assert_allclose(res, ref, rtol=1e-15, atol=1e-15)
 
+def test_se3_wrench_mat():
+    r = mr.SO3.rand().mat()
+    p = np.random.rand(3)
+
+    m1 = mr.SE3(r, p).mat_inv_adj().T
+    m2 = mr.SE3wrench(r, p).mat_adj()
+
+    np.testing.assert_allclose(m1, m2, rtol=1e-15, atol=1e-15)
+
+    m1 = mr.SE3(r, p).mat_adj()
+    m2 = mr.SE3wrench(r, p).mat_inv_adj().T
+
+    np.testing.assert_allclose(m1, m2, rtol=1e-15, atol=1e-15)
+
 def test_se3_wrench_hat_adj():
     f = np.random.rand(6)
     
