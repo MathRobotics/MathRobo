@@ -483,6 +483,13 @@ class SE3(LieAbstract):
     
     def __repr__(self):
         return f"SE3(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
+    
+    @classmethod
+    def change_class(cls, a):
+        b = cls.__new__(cls)
+        b.__dict__ = a.__dict__.copy()
+        cls.__init__(b, a.rot(), a.pos(), a.lib)
+        return b
 
 class SE3wrench(SE3):
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:
