@@ -3,3 +3,5 @@
 # 2025.05.08 Created by T.Ishigaki
 
 from .integral import *
+from .numerical_grad import *
+from .bspline import *
