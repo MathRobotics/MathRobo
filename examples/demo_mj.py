@@ -1,7 +1,13 @@
 """Generate a MathJax rendering of common SE(3) relationships.
 
-The example is intentionally lightweight so that unit tests can exercise the
-``render_mj`` helper without depending on a notebook environment.
+Why ship actual symbolic equations here?  The tests under ``tests/basic`` and
+the documentation snippets need a deterministic way of verifying that
+``render_mj`` keeps producing consistent MathJax.  By expressing a handful of
+canonical rigid-body identities (rotation matrix, position, velocity and
+angular velocity) with SymPy, we can lock the formatting behaviour down to a
+realistic robotics use case instead of ad-hoc strings.  This keeps the
+regression test close to how downstream notebooks display formulas while still
+remaining lightweight enough to run during continuous integration.
 """
 
 from __future__ import annotations
