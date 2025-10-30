@@ -10,7 +10,7 @@ class FactorialVector:
         self._dim = vecs.shape[1] if len(vecs.shape) > 1 else 1
         self._len = vecs.flatten().shape[0]
         self._vecs = vecs
-        self.factorial_mat = self._compute_factorial_matrix()
+        self._factorial_mat = self._compute_factorial_matrix()
 
     def _compute_factorial_matrix(self) -> Union[np.ndarray, jnp.ndarray]:
         if isinstance(self._vecs, np.ndarray):
@@ -26,7 +26,7 @@ class FactorialVector:
         return self._vecs.flatten()
 
     def vec_factorial(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self.factorial_mat @ self._vecs.flatten()
+        return self._factorial_mat @ self._vecs.flatten()
     
     def factorial_mat(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self.factorial_mat
+        return self._factorial_mat
