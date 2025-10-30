@@ -11,6 +11,7 @@ class FactorialVector:
         self._len = vecs.flatten().shape[0]
         self._vecs = vecs
         self._factorial_mat = self._compute_factorial_matrix()
+        self._inverse_factorial_mat = self._compute_inverse_factorial_matrix()
 
     def _compute_factorial_matrix(self) -> Union[np.ndarray, jnp.ndarray]:
         if isinstance(self._vecs, np.ndarray):
@@ -21,6 +22,16 @@ class FactorialVector:
         for i in range(self._n):
             mat[i*self._dim:(i+1)*self._dim, i*self._dim:(i+1)*self._dim] *= math.factorial(i)
         return mat
+    
+    def _compute_inverse_factorial_matrix(self) -> Union[np.ndarray, jnp.ndarray]:
+        if isinstance(self._vecs, np.ndarray):
+            mat = np.eye(self._len, dtype=self._vecs.dtype)
+        else:
+            mat = jnp.eye(self._len, dtype=self._vecs.dtype)
+
+        for i in range(self._n):
+            mat[i*self._dim:(i+1)*self._dim, i*self._dim:(i+1)*self._dim] /= math.factorial(i)
+        return mat
 
     def vec(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._vecs.flatten()
@@ -30,3 +41,6 @@ class FactorialVector:
     
     def factorial_mat(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._factorial_mat
+
+    def inverse_factorial_mat(self) -> Union[np.ndarray, jnp.ndarray]:
+        return self._inverse_factorial_mat
