@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import math
 import jax
 
+from ..basic import cm_vec as cmvec
 
 T = TypeVar('T')
 
@@ -16,6 +17,7 @@ class CMTM(Generic[T]):
             elem_vecs = np.array([])
         self._mat = elem_mat
         self._vecs = elem_vecs
+        self._cmvec = cmvec.CMVector(elem_vecs)
         self._dof = elem_mat.mat_adj().shape[0]
         self._mat_size = elem_mat.mat().shape[0]
         self._mat_adj_size = elem_mat.mat_adj().shape[0]
@@ -187,6 +189,9 @@ class CMTM(Generic[T]):
     def vecs(self, output_order = None):
         output_order = self.__check_output_order(output_order)
         return self._vecs[:output_order-1]
+    
+    def cmvecs(self):
+        return self._cmvec
     
     def vecs_flatten(self, output_order = None):
         output_order = self.__check_output_order(output_order)
