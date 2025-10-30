@@ -1,6 +1,9 @@
 from typing import TypeVar, Generic
-from ..basic import *
+import numpy as np
+import jax.numpy as jnp
+import math
 import jax
+
 
 T = TypeVar('T')
 
@@ -115,7 +118,7 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_adj()
         else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
             for i in range(p):
                 mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i]/math.factorial(i))
                 
@@ -230,7 +233,7 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_inv()
         else:
-            mat = zeros( (self._mat_size, self._mat_size) ) 
+            mat = np.zeros( (self._mat_size, self._mat_size) ) 
             for i in range(p):
                 mat = mat - self._mat.hat(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_elem(p-(i+1))
                 
@@ -255,7 +258,7 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_inv_adj()
         else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
             for i in range(p):
                 mat = mat - self._mat.hat_adj(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_adj_elem(p-(i+1))
                 
@@ -334,7 +337,7 @@ class CMTM(Generic[T]):
         if p == 0:
             return np.eye( self._mat_adj_size ) 
         else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
+            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) )
             for i in range(p):
                 mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__ptan_map_elem(p-(i+1))
             return mat
