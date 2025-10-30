@@ -33,7 +33,9 @@ class FactorialVector:
             mat[i*self._dim:(i+1)*self._dim, i*self._dim:(i+1)*self._dim] /= math.factorial(i)
         return mat
     
-    def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
+    def vecs(self, indx = None) -> Union[np.ndarray, jnp.ndarray]:
+        if indx is not None:
+            return self._vecs[indx]
         return self._vecs
 
     def vec(self) -> Union[np.ndarray, jnp.ndarray]:
