@@ -4,3 +4,4 @@
 
 from .basic import *
 from .factorial_vec import *
+from .cm_vec import *
