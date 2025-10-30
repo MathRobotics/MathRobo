@@ -4,8 +4,6 @@ from typing import Union
 import numpy as np
 import jax.numpy as jnp
 
-import factorial_vec as fv
-
 class CMVector:
     def __init__(self, vecs : Union[np.ndarray, jnp.ndarray]):
         self._factorial_vector = fv.FactorialVector(vecs)
