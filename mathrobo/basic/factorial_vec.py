@@ -26,4 +26,4 @@ class FactorialVector:
         return self.vecs.flatten()
     
     def vec_factorial(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self.factorial_mat @ self.vecs.flatten()
+        return self.factorial_mat @ self.vec()
