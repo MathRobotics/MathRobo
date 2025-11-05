@@ -112,6 +112,106 @@ class SO3(LieAbstract):
         return SO3(SO3.quaternion_to_mat(quaternion), LIB)
     
     @staticmethod
+    def set_euler(euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
+        assert len(euler) == 3, "Euler angles must be a 3-element vector."
+        assert isinstance(euler, (np.ndarray, jnp.ndarray)), "Euler angles must be a numpy or jax array."
+        roll, pitch, yaw = euler
+        if LIB == 'jax':
+            cr = jnp.cos(roll)
+            sr = jnp.sin(roll)
+            cp = jnp.cos(pitch)
+            sp = jnp.sin(pitch)
+            cy = jnp.cos(yaw)
+            sy = jnp.sin(yaw)
+            if order == 'ZYX':
+                m = jnp.array([
+                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                    [  -sp,           cp*sr,           cp*cr]
+                ])
+            elif order == 'ZXY':
+                m = jnp.array([
+                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
+                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
+                    [        -cp*sr,             cp*cr,     sp]
+                ])
+            elif order == 'YXZ':
+                m = jnp.array([
+                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
+                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
+                    [        -sp*cr,     sr,             cp*cr]
+                ])
+            elif order == 'YZX':
+                m = jnp.array([
+                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
+                    [   sp,           sr*cp,           cr*cp],
+                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
+                ])
+            elif order == 'XYZ':
+                m = jnp.array([
+                    [cp*cy, -cp*sy, sp],
+                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
+                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
+                ])
+            elif order == 'XZY':
+                m = jnp.array([
+                    [cp*cy, -sy, sp*cy],
+                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
+                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
+                ])
+            else:
+                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
+            return SO3(m, LIB)
+        elif LIB == 'numpy':
+            cr = np.cos(roll)
+            sr = np.sin(roll)
+            cp = np.cos(pitch)
+            sp = np.sin(pitch)
+            cy = np.cos(yaw)
+            sy = np.sin(yaw)
+            if order == 'ZYX':
+                m = np.array([
+                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                    [  -sp,           cp*sr,           cp*cr]
+                ])
+            elif order == 'ZXY':
+                m = np.array([
+                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
+                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
+                    [        -cp*sr,             cp*cr,     sp]
+                ])
+            elif order == 'YXZ':
+                m = np.array([
+                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
+                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
+                    [        -sp*cr,     sr,             cp*cr]
+                ])
+            elif order == 'YZX':
+                m = np.array([
+                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
+                    [   sp,           sr*cp,           cr*cp],
+                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
+                ])
+            elif order == 'XYZ':
+                m = np.array([
+                    [cp*cy, -cp*sy, sp],
+                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
+                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
+                ])
+            elif order == 'XZY':
+                m = np.array([
+                    [cp*cy, -sy, sp*cy],
+                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
+                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
+                ])
+            else:
+                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
+            return SO3(m, LIB)
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+    
+    @staticmethod
     def mat_to_quaternion(mat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         m = SO3(mat, LIB)
         return m.quaternion()
