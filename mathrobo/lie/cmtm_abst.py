@@ -395,6 +395,39 @@ class CMTM(Generic[T]):
         output_order = self.__check_output_order(output_order)
         return np.linalg.inv(self.tangent_mat(output_order))
 
+    def __tangent_mat_cm_elem(self, i : int, j : int):
+        mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) )
+        if i == 0:
+            return np.eye( self._mat_adj_size ) 
+        if i == j:
+            return np.eye( self._mat_adj_size ) / i
+        else:
+            for k in range(j,i):
+                mat = mat - self._mat.hat_adj(self._cmvecs.cm_vecs()[i-1-k]) @ self.__tangent_mat_elem(k, j) 
+            return mat / i
+
+    def tangent_mat_cm(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        mat = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
+
+        for i in range(output_order):
+            for j in range(i+1):
+                mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_cm_elem(i, j)
+
+        return mat
+
+    def tangent_mat_cm_inv(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        A = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
+        B = np.eye(self._mat_adj_size * output_order) 
+
+        A[self._mat_adj_size:, :-self._mat_adj_size] = self.hat_cm_adj(type(self._mat), self._cmvecs)
+
+        values = np.repeat(np.arange(np.ceil(output_order-1).astype(int)) + 1, self._mat_adj_size)[:output_order * self._mat_adj_size]
+        np.fill_diagonal(B[self._mat_adj_size:, self._mat_adj_size:], values)
+
+        return A + B
+
     @staticmethod
     def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
         if lval._n != rval._n:

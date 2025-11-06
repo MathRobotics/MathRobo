@@ -352,6 +352,11 @@ def test_cmtm_se3_tangent_mat():
 
     np.testing.assert_allclose(res.tangent_mat()@res.tangent_mat_inv(), np.eye(res._mat_adj_size*test_order), rtol=1e-10, atol=1e-10)
 
+def test_cmtm_se3_tangent_mat_cm():
+    res = mr.CMTM.rand(mr.SE3, test_order)
+
+    np.testing.assert_allclose(res.tangent_mat_cm()@res.tangent_mat_cm_inv(), np.eye(res._mat_adj_size*test_order), rtol=1e-10, atol=1e-10)
+
 def test_cmtm_se3_change_elemclass():
 
     res = mr.CMTM.rand(mr.SE3, test_order)
