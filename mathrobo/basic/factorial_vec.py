@@ -18,7 +18,7 @@ class Factorial:
         return mat
     
     @classmethod
-    def inverse_mat(cls, n: int, dim: int) -> Union[np.ndarray, jnp.ndarray]:
+    def mat_inv(cls, n: int, dim: int) -> Union[np.ndarray, jnp.ndarray]:
         length = n * dim
         if isinstance(dim, int):
             mat = np.eye(length)
@@ -35,7 +35,7 @@ class FactorialVector:
         self._len = vecs.flatten().shape[0]
         self._vecs = vecs
         self._factorial_mat = Factorial.mat(self._n, self._dim)
-        self._inverse_factorial_mat = Factorial.inverse_mat(self._n, self._dim)
+        self._inverse_factorial_mat = Factorial.mat_inv(self._n, self._dim)
         self._factorial_vecs = (self._factorial_mat @ vecs.flatten()).reshape(self._n, self._dim)
         self._inverse_factorial_vecs = (self._inverse_factorial_mat @ vecs.flatten()).reshape(self._n, self._dim)
     
