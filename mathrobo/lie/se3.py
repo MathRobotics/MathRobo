@@ -492,23 +492,6 @@ class SE3(LieAbstract):
         return b
 
 class SE3wrench(SE3):
-    def mat(self) -> Union[np.ndarray, jnp.ndarray]:
-        if self.lib == 'jax':
-            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
-            mat = jnp.block([
-                [self._rot, SO3.hat(self._pos, self.lib) @ self._rot],
-                [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot]
-            ])
-            return mat
-        elif self.lib == 'numpy':
-            mat = np.zeros((6,6))
-            mat[0:3,0:3] = self._rot
-            mat[0:3,3:6] = SO3.hat(self._pos) @ self._rot
-            mat[3:6,3:6] = self._rot
-            return mat
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
-
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':
             mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
