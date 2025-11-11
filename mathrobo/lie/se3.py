@@ -492,6 +492,10 @@ class SE3(LieAbstract):
         return b
 
 class SE3wrench(SE3):
+    @staticmethod
+    def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3wrench':
+        return SE3wrench(mat[0:3,0:3], mat[0:3,3], LIB)
+    
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':
             mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
@@ -507,7 +511,7 @@ class SE3wrench(SE3):
             mat[3:6,3:6] = self._rot
             return mat
         
-    def mat_inv_adj(self):
+    def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         mat = np.zeros((6,6))
         mat[0:3,0:3] = self._rot.transpose()
         mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos)
