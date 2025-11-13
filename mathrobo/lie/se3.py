@@ -556,6 +556,9 @@ class SE3wrench(SE3):
         mat[3:6,0:3] = SO3.hat(vec[3:6], LIB)
 
         return -mat
+
+    def __repr__(self):
+        return f"SE3wrench(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
     
 '''
     Khalil, et al. 1995
@@ -588,3 +591,6 @@ class SE3inertia(SE3):
         mat[0:3,4:10] = SE3inertia.hat_commute(w, LIB)
 
         return mat
+    
+    def __repr__(self):
+        return f"SE3inertia(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
