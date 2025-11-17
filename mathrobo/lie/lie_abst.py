@@ -124,7 +124,7 @@ class LieAbstract(ABC):
         elif frame == 'fframe':
             return cls.hat_commute_adj(self.mat() @ arb_vec, self.lib) @ tan_var_vec
 
-    def mat_var_x_arb_vec_jacob(self, tan_var_vec : Union[np.ndarray, jnp.ndarray], arb_vec : Union[np.ndarray, jnp.ndarray],
+    def mat_var_x_arb_vec_jacob(self, arb_vec : Union[np.ndarray, jnp.ndarray],
                            frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
         '''
         \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
