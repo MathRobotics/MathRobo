@@ -436,10 +436,10 @@ class SO3(LieAbstract):
 
     @staticmethod
     def sub_tan_vec(val0 : 'SO3', val1 : 'SO3', 
-                    type : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if type == 'bframe':
+                    frame : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if frame == 'bframe':
             vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
-        elif type == 'fframe':
+        elif frame == 'fframe':
             vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
         return vec
     

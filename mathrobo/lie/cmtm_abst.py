@@ -429,7 +429,7 @@ class CMTM(Generic[T]):
         return A + B
 
     @staticmethod
-    def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    def sub_vec(lval, rval, frame = 'bframe') -> np.ndarray: 
         if lval._n != rval._n:
             raise TypeError("Left operand should be same order in right operand")
         if lval._dof != rval._dof:
@@ -437,7 +437,7 @@ class CMTM(Generic[T]):
 
         dof = lval._mat._dof
         vec = np.zeros((lval._n * dof))
-        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
 
         for i in range(1,lval._n):
             vec[dof*i:dof*(i+1)] = rval._vecs[i-1] - lval._vecs[i-1]
@@ -445,7 +445,7 @@ class CMTM(Generic[T]):
         return vec
 
     @staticmethod
-    def sub_tan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray:
+    def sub_tan_vec(lval, rval, frame = 'bframe') -> np.ndarray:
         '''
         Subtract two variant CMTM objects in tangent space.
         '''
@@ -454,9 +454,9 @@ class CMTM(Generic[T]):
         if lval._dof != rval._dof:
             raise TypeError("Left operand should be same dof in right operand")
 
-        if frame_type == 'bframe':
+        if frame == 'bframe':
             vec = lval.vee(type(lval._mat), lval.mat_inv() @ (rval.mat() - lval.mat()))
-        elif frame_type == 'fframe':
+        elif frame == 'fframe':
             vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
         
         return vec.flatten()
