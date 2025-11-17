@@ -109,3 +109,32 @@ class LieAbstract(ABC):
     @staticmethod
     def exp_integ_adj(vec, a, LIB = 'numpy'):
         pass
+
+    def mat_var_x_arb_vec(self, 
+                           arb_vec : Union[np.ndarray, jnp.ndarray],
+                           tan_var_vec : Union[np.ndarray, jnp.ndarray],
+                           frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        '''
+        cls = type(self)
+        if frame == 'bframe':
+            return self.mat() @ cls.hat_commute_adj(arb_vec, self.lib) @ tan_var_vec
+        elif frame == 'fframe':
+            return cls.hat_commute_adj(self.mat() @ arb_vec, self.lib) @ tan_var_vec
+
+    def mat_var_x_arb_vec_jacob(self, tan_var_vec : Union[np.ndarray, jnp.ndarray], arb_vec : Union[np.ndarray, jnp.ndarray],
+                           frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+
+        @ returns: X @ hat_commute(arb_vec) (bframe)
+                    hat_commute(X @ arb_vec) (fframe)
+        '''
+        cls = type(self)
+        if frame == 'bframe':
+            return self.mat() @ cls.hat_commute_adj(arb_vec, self.lib)
+        elif frame == 'fframe':
+            return cls.hat_commute_adj(self.mat() @ arb_vec, self.lib)
