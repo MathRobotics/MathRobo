@@ -446,10 +446,6 @@ class CMTM(Generic[T]):
 
     @staticmethod
     def sub_tan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray:
-        return lval.ptan_to_tan(lval._mat.dof(), lval._n) @ CMTM.sub_ptan_vec(lval, rval, frame_type)
-
-    @staticmethod
-    def sub_tan_vec_var(lval, rval, frame_type = 'bframe') -> np.ndarray:
         '''
         Subtract two variant CMTM objects in tangent space.
         '''
