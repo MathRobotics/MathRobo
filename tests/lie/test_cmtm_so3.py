@@ -352,6 +352,3 @@ def test_cmtm_so3_tangent_mat_cm():
     res = mr.CMTM.rand(mr.SO3, test_order)
 
     np.testing.assert_allclose(res.tangent_mat_cm()@res.tangent_mat_cm_inv(), np.eye(res._mat_adj_size*test_order), rtol=1e-10, atol=1e-10)
-
-def test_cmtm_so3_var():
-    
