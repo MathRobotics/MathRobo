@@ -330,3 +330,93 @@ def test_se3_adj_jac_adj_lie_wrt_scaler_integ():
     dh = (h_ - h) / eps
     
     np.testing.assert_allclose(res, dh, 1e-3)
+
+def test_se3_mat_var_x_arb_vec():
+    mat = mr.SE3.rand()
+    arb_vec = np.random.rand(6)
+    tan_var_vec = np.random.rand(6)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.SE3.hat_commute_adj(arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe')
+    sol = mr.SE3.hat_commute_adj(mat.mat_adj() @ arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_se3_mat_var_x_arb_vec_jacob():
+    mat = mr.SE3.rand()
+    arb_vec = np.random.rand(6)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.SE3.hat_commute_adj(arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='fframe')
+    sol = mr.SE3.hat_commute_adj(mat.mat_adj() @ arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_se3_mat_var_x_arb_vec_num_jacob():
+    mat = mr.SE3.rand()
+    arb_vec = np.random.rand(6)
+
+    def func(t_vec):
+        '''
+            dH = H @ hat(dvec)
+            return (H + dH) @ arb_vec
+        '''
+        return mat.mat_adj() @ (np.eye(6) + mr.SE3.hat_adj(t_vec)) @ arb_vec
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    jacob_num = mr.numerical_grad(np.zeros(6), func)
+
+    np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)
+
+def test_se3_wrench_mat_var_x_arb_vec():
+    mat = mr.SE3wrench.rand()
+    arb_vec = np.random.rand(6)
+    tan_var_vec = np.random.rand(6)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.SE3wrench.hat_commute_adj(arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe')
+    sol = mr.SE3wrench.hat_commute_adj(mat.mat_adj() @ arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_se3_wrench_mat_var_x_arb_vec_jacob():
+    mat = mr.SE3wrench.rand()
+    arb_vec = np.random.rand(6)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.SE3wrench.hat_commute_adj(arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='fframe')
+    sol = mr.SE3wrench.hat_commute_adj(mat.mat_adj() @ arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_se3_wrench_mat_var_x_arb_vec_num_jacob():
+    mat = mr.SE3wrench.rand()
+    arb_vec = np.random.rand(6)
+
+    def func(t_vec):
+        '''
+            dH = H @ hat(dvec)
+            return (H + dH) @ arb_vec
+        '''
+        return mat.mat_adj() @ (np.eye(6) + mr.SE3wrench.hat_adj(t_vec)) @ arb_vec
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    jacob_num = mr.numerical_grad(np.zeros(6), func)
+
+    np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)
