@@ -457,17 +457,17 @@ class SO3(LieAbstract):
         else:
             TypeError("Right operand should be SO3 or numpy.ndarray")
 
-    @staticmethod
-    def rand(LIB : str = 'numpy') -> 'SO3':
+    @classmethod
+    def rand(cls, LIB : str = 'numpy') -> 'SO3':
         if LIB == 'jax':
             v = jax.random.uniform(jax.random.PRNGKey(0), (3,))
             m = SO3.exp(v, LIB='jax')
-            return SO3(m, LIB)
+            return cls(m, LIB)
         elif LIB == 'numpy':
             v = np.random.rand(3) 
             m = SO3.exp(v)
-            return SO3(m, LIB)
-        
+            return cls(m, LIB)
+
     def __repr__(self):
         return f"SO3(\nrot=\n{self._rot},\nLIB='{self.lib}')"
     

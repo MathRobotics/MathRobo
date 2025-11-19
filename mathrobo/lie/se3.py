@@ -6,6 +6,7 @@ import jax
 
 class SE3(LieAbstract):
     _dof = 6
+    _cls_so3 = SO3
     def __init__(self, rot = np.identity(3), pos = np.zeros(3), LIB : str = 'numpy'): 
         '''
         Constructor
@@ -473,13 +474,13 @@ class SE3(LieAbstract):
         else:
             TypeError("Right operand should be SE3 or numpy.ndarray")
 
-    @staticmethod
-    def rand(LIB = 'numpy') -> 'SE3':
+    @classmethod
+    def rand(cls, LIB = 'numpy') -> 'SE3':
         if LIB == 'jax':
             p = jax.random.uniform(jax.random.PRNGKey(0), (3,))
         elif LIB == 'numpy':
             p = np.random.rand(3) 
-        return SE3(SO3.rand(LIB).mat(), p, LIB)
+        return cls(cls._cls_so3.rand(LIB).mat(), p, LIB)
     
     def __repr__(self):
         return f"SE3(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
