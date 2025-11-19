@@ -368,3 +368,105 @@ def test_cmtm_se3_change_elemclass():
     res2 = mr.CMTM.change_elemclass(res, mr.SE3wrench)
 
     np.testing.assert_allclose(res.mat_inv_adj().T, res2.mat_adj(), rtol=1e-10, atol=1e-10)
+
+def test_cmtm_se3_mat_var_x_arb_vec():
+    mat = mr.CMTM.rand(mr.SE3, test_order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+    tan_var_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe').cm_vec()
+    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3, arb_vec) @ tan_var_vec.cm_vec()
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe').cm_vec()
+    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3, mat @ arb_vec) @ tan_var_vec.cm_vec()
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_se3_mat_var_x_arb_vec_jacob():
+    mat = mr.CMTM.rand(mr.SE3, test_order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3, arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='fframe')
+    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3, mat @ arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    mat_se3_cm = mr.CMTM.rand(mr.SE3, 1)
+    mat_se3 = mr.SE3.set_mat(mat_se3_cm.elem_mat())
+    arb_vec = np.random.rand(1,mat_se3_cm.adj_size())
+    np.testing.assert_allclose(
+        mat_se3_cm.mat_var_x_arb_vec_jacob(mr.cmvec.CMVector(arb_vec), frame='bframe'),
+        mat_se3.mat_var_x_arb_vec_jacob(arb_vec[0], frame='bframe'),
+        rtol=1e-15, atol=1e-15
+    )
+
+def test_cmtm_se3_mat_var_x_arb_vec_num_jacob():
+    mat = mr.CMTM.rand(mr.SE3, test_order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+
+    def func(dvec):
+        '''
+            dX = X @ hat(dvec)
+            return (X + dX) @ arb_vec
+        '''
+        v = mr.cmvec.CMVector.set_cmvecs(dvec.reshape(mat._n, -1))
+        return mat.mat_adj() @ (np.eye(mat.adj_size()) + mr.CMTM.hat_cm_adj(mr.SE3, v)) @ arb_vec.cm_vec()
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    jacob_num = mr.numerical_grad(np.zeros(mat.adj_size()), func)
+
+    np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)
+
+def test_cmtm_se3_wrench_mat_var_x_arb_vec():
+    mat = mr.CMTM.rand(mr.SE3wrench, test_order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+    tan_var_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe').cm_vec()
+    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3wrench, arb_vec) @ tan_var_vec.cm_vec()
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe').cm_vec()
+    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3wrench, mat @ arb_vec) @ tan_var_vec.cm_vec()
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_se3_wrench_mat_var_x_arb_vec_jacob():
+    mat = mr.CMTM.rand(mr.SE3wrench, test_order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3wrench, arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='fframe')
+    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3wrench, mat @ arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_cmtm_se3_wrench_mat_var_x_arb_vec_num_jacob():
+    order = 1
+    mat = mr.CMTM.rand(mr.SE3wrench, order)
+    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(order, -1))
+
+    def func(dvec):
+        '''
+            dX = X @ hat(dvec)
+            return (X + dX) @ arb_vec
+        '''
+        v = mr.cmvec.CMVector.set_cmvecs(dvec.reshape(mat._n, -1))
+        return mat.mat_adj() @ (np.eye(mat.adj_size()) + mr.CMTM.hat_cm_adj(mr.SE3wrench, v)) @ arb_vec.cm_vec()
+
+    res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    jacob_num = mr.numerical_grad(np.zeros(mat.adj_size()), func)
+
+    np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)
