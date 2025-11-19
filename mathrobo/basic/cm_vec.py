@@ -13,6 +13,11 @@ class CMVector:
         self._dim = self._factorial_vector._dim
         self._len = self._factorial_vector._len
 
+    @staticmethod
+    def set_cmvecs(cm_vecs : Union[np.ndarray, jnp.ndarray]) -> 'CMVector':
+        factorial_vec = FactorialVector.set_ifac_vecs(cm_vecs)
+        return CMVector(factorial_vec.vecs())
+
     def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._factorial_vector.vecs()
     

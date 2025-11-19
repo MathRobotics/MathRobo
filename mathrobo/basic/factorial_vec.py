@@ -38,7 +38,23 @@ class FactorialVector:
         self._inverse_factorial_mat = Factorial.mat_inv(self._n, self._dim)
         self._factorial_vecs = (self._factorial_mat @ vecs.flatten()).reshape(self._n, self._dim)
         self._inverse_factorial_vecs = (self._inverse_factorial_mat @ vecs.flatten()).reshape(self._n, self._dim)
+
+    @staticmethod
+    def set_fac_vecs(fac_vecs : Union[np.ndarray, jnp.ndarray]) -> 'FactorialVector':
+        n = fac_vecs.shape[0]
+        dim = fac_vecs.shape[1] if len(fac_vecs.shape) > 1 else 1
+        inverse_factorial_mat = Factorial.mat_inv(n, dim)
+        vecs = (inverse_factorial_mat @ fac_vecs.flatten()).reshape(n, dim)
+        return FactorialVector(vecs)
     
+    @staticmethod
+    def set_ifac_vecs(ifac_vecs : Union[np.ndarray, jnp.ndarray]) -> 'FactorialVector':
+        n = ifac_vecs.shape[0]
+        dim = ifac_vecs.shape[1] if len(ifac_vecs.shape) > 1 else 1
+        factorial_mat = Factorial.mat(n, dim)
+        vecs = (factorial_mat @ ifac_vecs.flatten()).reshape(n, dim)
+        return FactorialVector(vecs)
+
     def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._vecs
 
