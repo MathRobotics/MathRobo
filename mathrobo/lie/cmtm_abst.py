@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic
+from typing import TypeVar, Generic, Union
 import numpy as np
 import jax.numpy as jnp
 import math
@@ -22,7 +22,15 @@ class CMTM(Generic[T]):
         self._mat_size = elem_mat.mat().shape[0]
         self._mat_adj_size = elem_mat.mat_adj().shape[0]
         self._n = elem_vecs.shape[0] + 1
+        self._size = self._mat_size * self._n
+        self._adj_size = self._mat_adj_size * self._n
         self._lib = LIB
+
+    def size(self) -> int:
+        return self._size
+    
+    def adj_size(self) -> int:
+        return self._adj_size
 
     def __check_output_order(self, output_order : int):
         if output_order is None:
@@ -486,6 +494,8 @@ class CMTM(Generic[T]):
                 return CMTM(m, v)
             else:
                 TypeError("Right operand should be same size in left operand")
+        elif isinstance(rval, cmvec.CMVector):
+            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ rval.cm_vec()).reshape(self._n, self._mat_adj_size))
         elif isinstance(rval, np.ndarray):
             return self.mat() @ rval
         else:
@@ -501,3 +511,34 @@ class CMTM(Generic[T]):
         b_elem_mat = elem_cls.change_class(a._mat)
         cls.__init__(b, b_elem_mat, a._vecs, a._lib)
         return b
+    
+    def mat_var_x_arb_vec(self, 
+                            arb_vec : cmvec.CMVector,
+                            tan_var_vec : cmvec.CMVector,
+                            frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat) 
+        if frame == 'bframe':
+            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+        elif frame == 'fframe':
+            return cmvec.CMVector.set_cmvecs((cls.hat_cm_commute_adj(cls_elem, self @ arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+
+    def mat_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
+                           frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+
+        @ returns: X @ hat_commute(arb_vec) (bframe)
+                    hat_commute(X @ arb_vec) (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat)
+        if frame == 'bframe':
+            return self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec)
+        elif frame == 'fframe':
+            return cls.hat_cm_commute_adj(cls_elem, self @ arb_vec)
