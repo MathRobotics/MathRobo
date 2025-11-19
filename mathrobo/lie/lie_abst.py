@@ -120,9 +120,9 @@ class LieAbstract(ABC):
         '''
         cls = type(self)
         if frame == 'bframe':
-            return self.mat() @ cls.hat_commute_adj(arb_vec, self.lib) @ tan_var_vec
+            return self.mat_adj() @ cls.hat_commute_adj(arb_vec, self.lib) @ tan_var_vec
         elif frame == 'fframe':
-            return cls.hat_commute_adj(self.mat() @ arb_vec, self.lib) @ tan_var_vec
+            return cls.hat_commute_adj(self.mat_adj() @ arb_vec, self.lib) @ tan_var_vec
 
     def mat_var_x_arb_vec_jacob(self, arb_vec : Union[np.ndarray, jnp.ndarray],
                            frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
@@ -135,6 +135,6 @@ class LieAbstract(ABC):
         '''
         cls = type(self)
         if frame == 'bframe':
-            return self.mat() @ cls.hat_commute_adj(arb_vec, self.lib)
+            return self.mat_adj() @ cls.hat_commute_adj(arb_vec, self.lib)
         elif frame == 'fframe':
-            return cls.hat_commute_adj(self.mat() @ arb_vec, self.lib)
+            return cls.hat_commute_adj(self.mat_adj() @ arb_vec, self.lib)
