@@ -585,6 +585,18 @@ class SE3wrench(SE3):
         return mat
     
     @staticmethod
+    def hat_commute(vec: Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        hat commute operator on the tanget space vector
+        hat(a) @ b = hat_commute(b) @ a 
+        '''
+        mat = np.zeros((4,6))
+
+        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+        
+        return -mat
+    
+    @staticmethod
     def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
             hat_adj(a) @ b  = hat_commute_adj(a) @ b
