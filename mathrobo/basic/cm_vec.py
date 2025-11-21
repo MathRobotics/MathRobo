@@ -29,3 +29,6 @@ class CMVector:
     
     def cm_vec(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._factorial_vector.ifac_vec()    
+    
+    def __repr__(self):
+        return f"CMVector(n={self._n}, dim={self._dim}, len={self._len})\n{self.cm_vecs()}"
