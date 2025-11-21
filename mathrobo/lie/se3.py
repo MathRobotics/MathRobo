@@ -165,6 +165,18 @@ class SE3(LieAbstract):
             return mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+        
+    @staticmethod
+    def hat_commute(vec: Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        hat commute operator on the tanget space vector
+        hat(a) @ b = hat_commute(b) @ a 
+        '''
+        mat = np.zeros((4,6))
+
+        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+        
+        return -mat
 
     @staticmethod
     def vee(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -606,7 +618,7 @@ class SE3wrench(SE3):
         '''
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
-        
+
         mat = np.zeros((6,6))
         mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
         mat[0:3,3:6] = SO3.hat(vec[3:6], LIB)
