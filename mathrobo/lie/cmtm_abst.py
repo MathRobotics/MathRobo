@@ -517,8 +517,8 @@ class CMTM(Generic[T]):
                             tan_var_vec : cmvec.CMVector,
                             frame : str = 'bframe') -> cmvec.CMVector:
         '''
-        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
-        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
         '''
         cls = type(self)
         cls_elem = type(self._mat) 
@@ -530,11 +530,11 @@ class CMTM(Generic[T]):
     def mat_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
                            frame : str = 'bframe') -> cmvec.CMVector:
         '''
-        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
-        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
-
-        @ returns: X @ hat_commute(arb_vec) (bframe)
-                    hat_commute(X @ arb_vec) (fframe)
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        returns: 
+        X @ hat_commute(arb_vec) (bframe)
+        hat_commute(X @ arb_vec) (fframe)
         '''
         cls = type(self)
         cls_elem = type(self._mat)

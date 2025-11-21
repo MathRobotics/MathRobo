@@ -115,8 +115,8 @@ class LieAbstract(ABC):
                            tan_var_vec : Union[np.ndarray, jnp.ndarray],
                            frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
         '''
-        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
-        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
         '''
         cls = type(self)
         if frame == 'bframe':
@@ -127,11 +127,12 @@ class LieAbstract(ABC):
     def mat_var_x_arb_vec_jacob(self, arb_vec : Union[np.ndarray, jnp.ndarray],
                            frame : str = 'bframe') -> Union[np.ndarray, jnp.ndarray]:
         '''
-        \delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
-        \delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
-
-        @ returns: X @ hat_commute(arb_vec) (bframe)
-                    hat_commute(X @ arb_vec) (fframe)
+        
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        returns: 
+        X @ hat_commute(arb_vec) (bframe)
+        hat_commute(X @ arb_vec) (fframe)
         '''
         cls = type(self)
         if frame == 'bframe':
