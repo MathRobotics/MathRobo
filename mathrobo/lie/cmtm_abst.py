@@ -493,13 +493,13 @@ class CMTM(Generic[T]):
                             + rval._vecs[2]
                 return CMTM(m, v)
             else:
-                TypeError("Right operand should be same size in left operand")
+                raise TypeError("Right operand should be same size in left operand")
         elif isinstance(rval, cmvec.CMVector):
             return cmvec.CMVector.set_cmvecs((self.mat_adj() @ rval.cm_vec()).reshape(self._n, self._mat_adj_size))
         elif isinstance(rval, np.ndarray):
             return self.mat() @ rval
         else:
-            TypeError("Right operand should be CMTM or numpy.ndarray")
+            raise TypeError("Right operand should be CMTM or numpy.ndarray")
 
     def __repr__(self):
         return f"CMTM(\nelem_mat=\n{self._mat},\nelem_vecs=\n{self._vecs},\nLIB='{self._lib}')"
