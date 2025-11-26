@@ -205,15 +205,10 @@ class CMTM(Generic[T]):
         output_order = self.__check_output_order(output_order)
         return self._vecs[:output_order-1].flatten()
     
-    def inv(self):
-        vecs = np.zeros_like(self._vecs)
-        if self._n < 0:
-            for i in range(self._n-1):
-                vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
-            return CMTM(self._mat.inv(), vecs)
-        else:
-            # tentative implementation
-            return CMTM.set_mat(type(self._mat), self.mat_inv())
+    def inv(self) -> 'CMTM':
+        inv_cmvec = -self.mat_adj(output_order=self._n-1) @ self._cmvecs.cm_vec()
+        v = cmvec.CMVector.set_cmvecs(inv_cmvec.reshape(self._n-1, self._dof))
+        return CMTM(self._mat.inv(), v.vecs())
 
     def __mat_inv_elem(self, p : int):
         if p == 0:
