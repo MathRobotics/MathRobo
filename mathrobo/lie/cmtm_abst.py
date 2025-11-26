@@ -206,9 +206,12 @@ class CMTM(Generic[T]):
         return self._vecs[:output_order-1].flatten()
     
     def inv(self) -> 'CMTM':
-        inv_cmvec = -self.mat_adj(output_order=self._n-1) @ self._cmvecs.cm_vec()
-        v = cmvec.CMVector.set_cmvecs(inv_cmvec.reshape(self._n-1, self._dof))
-        return CMTM(self._mat.inv(), v.vecs())
+        if self._n < 0 :
+            inv_cmvec = -self.mat_adj(output_order=self._n-1) @ self._cmvecs.cm_vec()
+            v = cmvec.CMVector.set_cmvecs(inv_cmvec.reshape(self._n-1, self._dof))
+            return CMTM(self._mat.inv(), v.vecs())
+        else:
+            return CMTM.set_mat(type(self._mat), self.mat_inv(), LIB=self._lib)
 
     def __mat_inv_elem(self, p : int):
         if p == 0:
@@ -537,3 +540,22 @@ class CMTM(Generic[T]):
             return self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec)
         elif frame == 'fframe':
             return cls.hat_cm_commute_adj(cls_elem, self @ arb_vec)
+        
+    def mat_inv_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
+                           frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        delta X^-1 @ arb_vec 
+            = - X^-1 @ delta X @ X^-1 @ arb_vec
+            = - X^-1 @ X @ hat(tan_var_vec) @ X^-1 @ arb_vec
+            = -hat_commute(X^-1 @ arb_vec) @ tan_var_vec  (bframe)
+        returns: 
+        X @ hat_commute(arb_vec) (bframe)
+        hat_commute(X @ arb_vec) (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat)
+
+        if frame == 'bframe':
+            return -cls.hat_cm_commute_adj(cls_elem, self.inv() @ arb_vec)
+        elif frame == 'fframe':
+            raise NotImplementedError("Not implemented for fframe")
