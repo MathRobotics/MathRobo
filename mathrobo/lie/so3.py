@@ -479,7 +479,10 @@ class SO3wrench(SO3):
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.hat(vec, LIB)
-    
+
+    def inv(self) -> 'SO3wrench':
+        return SO3wrench(self._rot.transpose(), self.lib)
+
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.exp(vec, a, LIB).transpose()

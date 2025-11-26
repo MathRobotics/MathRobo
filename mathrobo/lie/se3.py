@@ -551,6 +551,9 @@ class SE3wrench(SE3):
             mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
             mat[3:6,3:6] = self._rot
             return mat
+    
+    def inv(self) -> 'SE3wrench':
+        return SE3wrench(self._rot.transpose(), -self._rot.transpose() @ self._pos, self.lib)
         
     def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         mat = np.zeros((6,6))
