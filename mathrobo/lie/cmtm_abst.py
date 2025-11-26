@@ -502,7 +502,7 @@ class CMTM(Generic[T]):
             raise TypeError("Right operand should be CMTM or numpy.ndarray")
 
     def __repr__(self):
-        return f"CMTM(\nelem_mat=\n{self._mat},\nelem_vecs=\n{self._vecs},\nLIB='{self._lib}')"
+        return f"CMTM(\n\telem_mat=\n{self._mat},\n\telem_vecs=\n{self._vecs},\n\tLIB='{self._lib}'\n)"
     
     @classmethod
     def change_elemclass(cls, a : 'CMTM', elem_cls) -> 'CMTM':
