@@ -375,14 +375,20 @@ def test_cmtm_se3_mat_var_x_arb_vec():
     tan_var_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
 
     res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe').cm_vec()
-    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3, arb_vec) @ tan_var_vec.cm_vec()
 
+    sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SE3, arb_vec) @ tan_var_vec.cm_vec()
     np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    sol2 = mat.mat_adj() @ mr.CMTM.hat_cm_adj(mr.SE3, tan_var_vec) @ arb_vec.cm_vec()
+    np.testing.assert_allclose(res, sol2, rtol=1e-15, atol=1e-15)
 
     res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe').cm_vec()
-    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3, mat @ arb_vec) @ tan_var_vec.cm_vec()
 
+    sol = mr.CMTM.hat_cm_commute_adj(mr.SE3, mat @ arb_vec) @ tan_var_vec.cm_vec()
     np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    sol2 = mr.CMTM.hat_cm_adj(mr.SE3, tan_var_vec) @ mat.mat_adj() @ arb_vec.cm_vec()
+    np.testing.assert_allclose(res, sol2, rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_mat_var_x_arb_vec_jacob():
     mat = mr.CMTM.rand(mr.SE3, test_order)
