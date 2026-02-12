@@ -121,7 +121,7 @@ def jac_lie_v_wrt_vector(lie, vec, a, v, LIB = 'numpy'):
     m = lie.exp(vec, a, LIB)
     integ_m = -lie.exp_integ_adj(vec, -a, LIB)
 
-    return m @ lie.hat_commute(v, LIB) @ integ_m
+    return m @ lie.hat_commute_adj(v, LIB) @ integ_m
 
 def sympy_to_numpy(sp_mat):
     return np.array(sp_mat).astype(np.float64)

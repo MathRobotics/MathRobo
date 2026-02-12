@@ -167,3 +167,48 @@ def test_so3_jac_lie_wrt_scaler_integ():
     dr = (r_ - r) / eps
     
     np.testing.assert_allclose(res, dr, 1e-3)
+
+def test_so3_mat_var_x_arb_vec():
+    rot = mr.SO3.rand()
+    arb_vec = np.random.rand(3)
+    tan_var_vec = np.random.rand(3)
+
+    res = rot.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe')
+    sol = rot.mat_adj() @ mr.SO3.hat_commute_adj(arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = rot.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe')
+    sol = mr.SO3.hat_commute_adj(rot.mat() @ arb_vec) @ tan_var_vec
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_so3_mat_var_x_arb_vec_jacob():
+    rot = mr.SO3.rand()
+    arb_vec = np.random.rand(3)
+
+    res = rot.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    sol = rot.mat_adj() @ mr.SO3.hat_commute_adj(arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+    res = rot.mat_var_x_arb_vec_jacob(arb_vec, frame='fframe')
+    sol = mr.SO3.hat_commute_adj(rot.mat() @ arb_vec)
+
+    np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
+
+def test_so3_mat_var_x_arb_vec_num_jacob():
+    rot = mr.SO3.rand()
+    arb_vec = np.random.rand(3)
+
+    def func(dvec):
+        '''
+            dR = R @ hat(dvec)
+            return (R + dR) @ arb_vec
+        '''
+        return rot.mat() @ (np.eye(3) + mr.SO3.hat(dvec)) @ arb_vec
+
+    res = rot.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
+    jacob_num = mr.numerical_grad(np.zeros(3), func)
+    
+    np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)

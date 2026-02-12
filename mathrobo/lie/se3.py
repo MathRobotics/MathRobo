@@ -6,6 +6,7 @@ import jax
 
 class SE3(LieAbstract):
     _dof = 6
+    _cls_so3 = SO3
     def __init__(self, rot = np.identity(3), pos = np.zeros(3), LIB : str = 'numpy'): 
         '''
         Constructor
@@ -142,7 +143,12 @@ class SE3(LieAbstract):
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
         hat operator on the tanget space vector
+        mat =
+        [ SO3.hat(w)  v ]
         '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         if LIB == "jax":
             w, v = jnp.split(vec, 2, axis=-1)
             upper = jnp.concatenate(
@@ -159,7 +165,7 @@ class SE3(LieAbstract):
             return mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
-    
+        
     @staticmethod
     def hat_commute(vec: Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
@@ -177,6 +183,9 @@ class SE3(LieAbstract):
         '''
         a = vee(hat(a))
         '''
+        if vec_hat.shape != (4,4):
+            raise ValueError("Input matrix must be of size (4,4).")
+        
         if LIB == 'jax':
             w = SO3.vee(vec_hat[0:3,0:3], LIB)
             v = vec_hat[0:3,3]
@@ -190,6 +199,9 @@ class SE3(LieAbstract):
     
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         if LIB == 'jax':
             rot, pos = jnp.split(vec, 2, axis=-1)
             R = SO3.exp(rot, a, LIB)
@@ -218,6 +230,9 @@ class SE3(LieAbstract):
         """
             p x Rの積分の計算
         """
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         if LIB == 'numpy':
             theta = np.linalg.norm(vec[0:3])
             if not math.isclose(theta, 1.0):
@@ -323,6 +338,9 @@ class SE3(LieAbstract):
         '''
         sympyの場合,vec[0:3]の大きさは1を想定
         '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         if LIB == 'numpy':
             rot = vec[0:3]
             pos = vec[3:6]
@@ -340,7 +358,15 @@ class SE3(LieAbstract):
 
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-
+        '''
+        hat operator on the tanget space vector for adjoint representation
+        mat =
+        [ SO3.hat(w)      0       ]
+        [ SO3.hat(v)  SO3.hat(w)  ]
+        '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         w, v = vec[:3], vec[3:]
         w_hat = SO3.hat(w, LIB)
         v_hat = SO3.hat(v, LIB)
@@ -362,10 +388,20 @@ class SE3(LieAbstract):
     
     @staticmethod
     def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+            hat_adj(a) @ b  = hat_commute_adj(a) @ b
+            return -hat_adj(vec)
+        '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         return -SE3.hat_adj(vec, LIB)
 
     @staticmethod
     def vee_adj(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if vec_hat.shape != (6,6):
+            raise ValueError("Input matrix must be of size (6,6).")
+        
         if LIB == 'jax':
             w = 0.5 * ( SO3.vee(vec_hat[0:3,0:3], LIB) + SO3.vee(vec_hat[3:6,3:6], LIB) )
             v = SO3.vee(vec_hat[3:6,0:3], LIB)
@@ -383,6 +419,8 @@ class SE3(LieAbstract):
         SE3の随伴表現の計算
         sympyの場合,vec[0:3]の大きさは1を想定
         '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
 
         h = SE3.exp(vec, a, LIB)
 
@@ -395,6 +433,9 @@ class SE3(LieAbstract):
     
     @staticmethod
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         """
             SE3の随伴表現の積分の計算
         """
@@ -427,13 +468,13 @@ class SE3(LieAbstract):
 
     @staticmethod
     def sub_tan_vec(val0 : 'SE3', val1 : 'SE3', 
-                    type : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+                    frame : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
 
-        w = SO3.sub_tan_vec(SO3(val0.rot(),LIB), SO3(val1.rot(),LIB), type, LIB)
+        w = SO3.sub_tan_vec(SO3(val0.rot(),LIB), SO3(val1.rot(),LIB), frame, LIB)
 
-        if type == 'bframe':
+        if frame == 'bframe':
             v = val0.rot().transpose() @ (val1.pos() - val0.pos())
-        elif type == 'fframe':
+        elif frame == 'fframe':
             tmp = (val1.rot() - val0.rot()) @ val0.rot().transpose()
             v = (val1.pos() - val0.pos()) - tmp @ val0.pos()
         
@@ -473,13 +514,13 @@ class SE3(LieAbstract):
         else:
             TypeError("Right operand should be SE3 or numpy.ndarray")
 
-    @staticmethod
-    def rand(LIB = 'numpy') -> 'SE3':
+    @classmethod
+    def rand(cls, LIB = 'numpy') -> 'SE3':
         if LIB == 'jax':
             p = jax.random.uniform(jax.random.PRNGKey(0), (3,))
         elif LIB == 'numpy':
             p = np.random.rand(3) 
-        return SE3(SO3.rand(LIB).mat(), p, LIB)
+        return cls(cls._cls_so3.rand(LIB).mat(), p, LIB)
     
     def __repr__(self):
         return f"SE3(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
@@ -492,44 +533,40 @@ class SE3(LieAbstract):
         return b
 
 class SE3wrench(SE3):
-    def mat(self) -> Union[np.ndarray, jnp.ndarray]:
+    @staticmethod
+    def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3wrench':
+        return SE3wrench(mat[0:3,0:3], mat[0:3,3], LIB)
+    
+    def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':
-            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
-            mat = jnp.block([
+            return jnp.block([
                 [self._rot, SO3.hat(self._pos, self.lib) @ self._rot],
                 [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot]
             ])
-            return mat
-        elif self.lib == 'numpy':
-            mat = np.zeros((6,6))
-            mat[0:3,0:3] = self._rot
-            mat[0:3,3:6] = SO3.hat(self._pos) @ self._rot
-            mat[3:6,3:6] = self._rot
-            return mat
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
-
-    def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
-        if self.lib == 'jax':
-            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
-            mat = jnp.block([
-                [self._rot, jnp.zeros((3, 3), dtype=self._rot.dtype)],
-                [SO3.hat(self._pos, self.lib) @ self._rot, self._rot]
-            ])
-            return mat
         elif self.lib == 'numpy':
             mat = np.zeros((6,6))
             mat[0:3,0:3] = self._rot
             mat[0:3,3:6] = SO3.hat(self._pos, self.lib) @ self._rot
             mat[3:6,3:6] = self._rot
             return mat
+    
+    def inv(self) -> 'SE3wrench':
+        return SE3wrench(self._rot.transpose(), -self._rot.transpose() @ self._pos, self.lib)
         
-    def mat_inv_adj(self):
-        mat = np.zeros((6,6))
-        mat[0:3,0:3] = self._rot.transpose()
-        mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos)
-        mat[3:6,3:6] = self._rot.transpose()
-        return mat
+    def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
+        if self.lib == 'jax':
+            return jnp.block([
+                [self._rot.transpose(), -self._rot.transpose() @ SO3.hat(self._pos, self.lib)],
+                [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot.transpose()]
+            ])
+        elif self.lib == 'numpy':
+            mat = np.zeros((6,6))
+            mat[0:3,0:3] = self._rot.transpose()
+            mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos, self.lib)
+            mat[3:6,3:6] = self._rot.transpose()
+            return mat
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -541,7 +578,14 @@ class SE3wrench(SE3):
     
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-
+        '''
+        mat = 
+        [ SO3.hat(w)   SO3.hat(v) ]
+        [     0        SO3.hat(w) ]
+        '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+        
         w, v = vec[:3], vec[3:]
         w_hat = SO3.hat(w, LIB)
         v_hat = SO3.hat(v, LIB)
@@ -562,13 +606,37 @@ class SE3wrench(SE3):
         return mat
     
     @staticmethod
+    def hat_commute(vec: Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+        hat commute operator on the tanget space vector
+        hat(a) @ b = hat_commute(b) @ a 
+        '''
+        mat = np.zeros((4,6))
+
+        mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+        
+        return -mat
+    
+    @staticmethod
     def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        '''
+            hat_adj(a) @ b  = hat_commute_adj(a) @ b
+            mat =
+            [[ -SO3.hat(w)     -SO3.hat(v) ]
+             [ -SO3.hat(v)     -SO3.hat(w) ]]
+        '''
+        if vec.shape[-1] != 6:
+            raise ValueError("Input vector must be of size 6.")
+
         mat = np.zeros((6,6))
         mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
         mat[0:3,3:6] = SO3.hat(vec[3:6], LIB)
         mat[3:6,0:3] = SO3.hat(vec[3:6], LIB)
 
         return -mat
+
+    def __repr__(self):
+        return f"SE3wrench(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
     
 '''
     Khalil, et al. 1995
@@ -586,7 +654,6 @@ class SE3inertia(SE3):
         mat[3:6,3:6] = vec[0]*np.identity(3)
 
         return mat
-
     
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -601,3 +668,6 @@ class SE3inertia(SE3):
         mat[0:3,4:10] = SE3inertia.hat_commute(w, LIB)
 
         return mat
+    
+    def __repr__(self):
+        return f"SE3inertia(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"

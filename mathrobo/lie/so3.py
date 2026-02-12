@@ -112,6 +112,106 @@ class SO3(LieAbstract):
         return SO3(SO3.quaternion_to_mat(quaternion), LIB)
     
     @staticmethod
+    def set_euler(euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
+        assert len(euler) == 3, "Euler angles must be a 3-element vector."
+        assert isinstance(euler, (np.ndarray, jnp.ndarray)), "Euler angles must be a numpy or jax array."
+        roll, pitch, yaw = euler
+        if LIB == 'jax':
+            cr = jnp.cos(roll)
+            sr = jnp.sin(roll)
+            cp = jnp.cos(pitch)
+            sp = jnp.sin(pitch)
+            cy = jnp.cos(yaw)
+            sy = jnp.sin(yaw)
+            if order == 'ZYX':
+                m = jnp.array([
+                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                    [  -sp,           cp*sr,           cp*cr]
+                ])
+            elif order == 'ZXY':
+                m = jnp.array([
+                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
+                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
+                    [        -cp*sr,             cp*cr,     sp]
+                ])
+            elif order == 'YXZ':
+                m = jnp.array([
+                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
+                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
+                    [        -sp*cr,     sr,             cp*cr]
+                ])
+            elif order == 'YZX':
+                m = jnp.array([
+                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
+                    [   sp,           sr*cp,           cr*cp],
+                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
+                ])
+            elif order == 'XYZ':
+                m = jnp.array([
+                    [cp*cy, -cp*sy, sp],
+                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
+                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
+                ])
+            elif order == 'XZY':
+                m = jnp.array([
+                    [cp*cy, -sy, sp*cy],
+                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
+                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
+                ])
+            else:
+                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
+            return SO3(m, LIB)
+        elif LIB == 'numpy':
+            cr = np.cos(roll)
+            sr = np.sin(roll)
+            cp = np.cos(pitch)
+            sp = np.sin(pitch)
+            cy = np.cos(yaw)
+            sy = np.sin(yaw)
+            if order == 'ZYX':
+                m = np.array([
+                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                    [  -sp,           cp*sr,           cp*cr]
+                ])
+            elif order == 'ZXY':
+                m = np.array([
+                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
+                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
+                    [        -cp*sr,             cp*cr,     sp]
+                ])
+            elif order == 'YXZ':
+                m = np.array([
+                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
+                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
+                    [        -sp*cr,     sr,             cp*cr]
+                ])
+            elif order == 'YZX':
+                m = np.array([
+                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
+                    [   sp,           sr*cp,           cr*cp],
+                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
+                ])
+            elif order == 'XYZ':
+                m = np.array([
+                    [cp*cy, -cp*sy, sp],
+                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
+                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
+                ])
+            elif order == 'XZY':
+                m = np.array([
+                    [cp*cy, -sy, sp*cy],
+                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
+                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
+                ])
+            else:
+                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
+            return SO3(m, LIB)
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+    
+    @staticmethod
     def mat_to_quaternion(mat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         m = SO3(mat, LIB)
         return m.quaternion()
@@ -267,12 +367,16 @@ class SO3(LieAbstract):
             ca = jnp.cos(a_)
             sa = jnp.sin(a_)
 
-            A  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca)/ (n*n))
-            B  = jnp.where(a_ == 0.0, 0.0, (a_ - sa) / (n*n*n))
+            # Integral of exp(s * hat(vec)) ds on [0, a].
+            # Use the same coefficient form as the numpy path.
+            n2 = n * n
+            n3 = n2 * n
+            A  = jnp.where(n == 0.0, 0.0, (1.0 - ca) / n2)
+            B  = jnp.where(n == 0.0, 0.0, (a_ - sa) / n3)
 
-            K = jnp.where(n == 0.0, jnp.zeros((3,3)), SO3.hat(vec/n, 'jax'))
+            K = SO3.hat(vec, 'jax')
 
-            return a_*I + A * K + B * (K @ K)
+            return a*I + A * K + B * (K @ K)
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
@@ -336,10 +440,10 @@ class SO3(LieAbstract):
 
     @staticmethod
     def sub_tan_vec(val0 : 'SO3', val1 : 'SO3', 
-                    type : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if type == 'bframe':
+                    frame : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if frame == 'bframe':
             vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
-        elif type == 'fframe':
+        elif frame == 'fframe':
             vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
         return vec
     
@@ -357,17 +461,17 @@ class SO3(LieAbstract):
         else:
             TypeError("Right operand should be SO3 or numpy.ndarray")
 
-    @staticmethod
-    def rand(LIB : str = 'numpy') -> 'SO3':
+    @classmethod
+    def rand(cls, LIB : str = 'numpy') -> 'SO3':
         if LIB == 'jax':
             v = jax.random.uniform(jax.random.PRNGKey(0), (3,))
             m = SO3.exp(v, LIB='jax')
-            return SO3(m, LIB)
+            return cls(m, LIB)
         elif LIB == 'numpy':
             v = np.random.rand(3) 
             m = SO3.exp(v)
-            return SO3(m, LIB)
-        
+            return cls(m, LIB)
+
     def __repr__(self):
         return f"SO3(\nrot=\n{self._rot},\nLIB='{self.lib}')"
     
@@ -379,7 +483,10 @@ class SO3wrench(SO3):
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.hat(vec, LIB)
-    
+
+    def inv(self) -> 'SO3wrench':
+        return SO3wrench(self._rot.transpose(), self.lib)
+
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.exp(vec, a, LIB).transpose()

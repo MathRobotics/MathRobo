@@ -1,6 +1,10 @@
-from typing import TypeVar, Generic
-from ..basic import *
+from typing import TypeVar, Generic, Union
+import numpy as np
+import jax.numpy as jnp
+import math
 import jax
+
+from ..basic import cm_vec as cmvec
 
 T = TypeVar('T')
 
@@ -13,11 +17,20 @@ class CMTM(Generic[T]):
             elem_vecs = np.array([])
         self._mat = elem_mat
         self._vecs = elem_vecs
+        self._cmvecs = cmvec.CMVector(elem_vecs)
         self._dof = elem_mat.mat_adj().shape[0]
         self._mat_size = elem_mat.mat().shape[0]
         self._mat_adj_size = elem_mat.mat_adj().shape[0]
         self._n = elem_vecs.shape[0] + 1
+        self._size = self._mat_size * self._n
+        self._adj_size = self._mat_adj_size * self._n
         self._lib = LIB
+
+    def size(self) -> int:
+        return self._size
+    
+    def adj_size(self) -> int:
+        return self._adj_size
 
     def __check_output_order(self, output_order : int):
         if output_order is None:
@@ -59,7 +72,7 @@ class CMTM(Generic[T]):
             else:
                 mat = np.zeros( (self._mat_size, self._mat_size) ) 
                 for i in range(p):
-                    mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._vecs[i]/math.factorial(i))
+                    mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._cmvecs.cm_vecs()[i])
 
                 return mat / p
         
@@ -115,10 +128,10 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_adj()
         else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
             for i in range(p):
-                mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._vecs[i]/math.factorial(i))
-                
+                mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._cmvecs.cm_vecs()[i])
+
             return mat / p
         
     def mat_adj(self, output_order = None):
@@ -185,54 +198,28 @@ class CMTM(Generic[T]):
         output_order = self.__check_output_order(output_order)
         return self._vecs[:output_order-1]
     
+    def cmvecs(self):
+        return self._cmvecs
+    
     def vecs_flatten(self, output_order = None):
         output_order = self.__check_output_order(output_order)
         return self._vecs[:output_order-1].flatten()
     
-    def ptan_vecs(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        v = np.zeros((output_order-1, self._dof))
-        for i in range(output_order-1):
-            v[i] = self._vecs[i]
-            for j in range(i):
-                v[i] += self._mat.hat_adj(self._vecs[j]) @ self._vecs[i-j-1]
-        return v
-    
-    def ptan_vecs_flatten(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        return self.ptan_vecs(output_order).flatten()
-        
-    def tan_vecs(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        v = np.zeros((output_order-1, self._dof))
-        for i in range(output_order-1):
-            v[i] = self._vecs[i]
-            for j in range(i):
-                v[i] += self._mat.hat_adj(self._vecs[j]) @ self._vecs[i-j-1]
-            v[i] = v[i] / (math.factorial(i))
-        return v
-    
-    def tan_vecs_flatten(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        return self.tan_vecs(output_order).flatten()
-            
-    def inv(self):
-        vecs = np.zeros_like(self._vecs)
-        if self._n < 0:
-            for i in range(self._n-1):
-                vecs[i] = -self._mat.mat_adj() @ self._vecs[i]
-            return CMTM(self._mat.inv(), vecs)
+    def inv(self) -> 'CMTM':
+        if self._n < 0 :
+            inv_cmvec = -self.mat_adj(output_order=self._n-1) @ self._cmvecs.cm_vec()
+            v = cmvec.CMVector.set_cmvecs(inv_cmvec.reshape(self._n-1, self._dof))
+            return CMTM(self._mat.inv(), v.vecs())
         else:
-            # tentative implementation
-            return CMTM.set_mat(type(self._mat), self.mat_inv())
+            return CMTM.set_mat(type(self._mat), self.mat_inv(), LIB=self._lib)
 
     def __mat_inv_elem(self, p : int):
         if p == 0:
             return self._mat.mat_inv()
         else:
-            mat = zeros( (self._mat_size, self._mat_size) ) 
+            mat = np.zeros( (self._mat_size, self._mat_size) ) 
             for i in range(p):
-                mat = mat - self._mat.hat(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_elem(p-(i+1))
+                mat = mat - self._mat.hat(self._cmvecs.cm_vecs()[i]) @ self.__mat_inv_elem(p-(i+1))
                 
             return mat / p
     
@@ -255,9 +242,9 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_inv_adj()
         else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
             for i in range(p):
-                mat = mat - self._mat.hat_adj(self._vecs[i]/math.factorial(i)) @ self.__mat_inv_adj_elem(p-(i+1))
+                mat = mat - self._mat.hat_adj(self._cmvecs.cm_vecs()[i]) @ self.__mat_inv_adj_elem(p-(i+1))
                 
             return mat / p
     
@@ -294,6 +281,25 @@ class CMTM(Generic[T]):
     @staticmethod
     def hat_adj(T, vecs):
         return CMTM.__hat_func(T.hat_adj, vecs)
+    
+    @staticmethod
+    def __hat_cm_func(hat, vecs : cmvec.CMVector):
+        n = vecs._n
+        m = vecs._dim
+        mat = np.zeros((m*n,m*n))
+        for i in range(n):
+            tmp = hat(vecs.cm_vecs()[i])
+            for j in range(n-i):
+                mat[m*i+m*j:m*(i+1)+m*j,m*j:m*(j+1)] = tmp
+        return mat
+    
+    @staticmethod
+    def hat_cm(T, vecs : cmvec.CMVector):
+        return CMTM.__hat_cm_func(T.hat, vecs)
+
+    @staticmethod
+    def hat_cm_adj(T, vecs : cmvec.CMVector):
+        return CMTM.__hat_cm_func(T.hat_adj, vecs)
 
     @staticmethod
     def __vee_func(dof, size : int, vee, mat):
@@ -323,85 +329,48 @@ class CMTM(Generic[T]):
         return CMTM.__vee_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)
     
     @staticmethod
+    def __vee_cm_func(dof, size : int, vee, mat) -> cmvec.CMVector:
+        '''
+        dof : dof of lie group
+        size : size of matrix
+        vee : vee function
+        '''
+        if size == 0:
+            raise TypeError("Element matrix size is zero")
+        n = dof
+        m = int(mat.shape[0] / size)
+        vecs = np.zeros((m,n))
+        for i in range(m):
+            tmp = np.zeros(n)
+            for j in range(i,m):
+                tmp += vee( mat[j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
+            vecs[i] = tmp / (m-i) * math.factorial(i)
+        return cmvec.CMVector(vecs)
+
+    @staticmethod
+    def vee_cm(T, hat_mat):
+        return CMTM.__vee_cm_func(T.dof(), T.mat_size(), T.vee, hat_mat)
+    
+    @staticmethod
+    def vee_cm_adj(T, hat_mat):
+        return CMTM.__vee_cm_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)
+    
+    @staticmethod
     def hat_commute(T, vecs):
         return CMTM.__hat_func(T.hat_commute, vecs)
     
     @staticmethod
     def hat_commute_adj(T, vecs):
         return CMTM.__hat_func(T.hat_commute_adj, vecs)
-
-    def __ptan_map_elem(self, p : int):
-        if p == 0:
-            return np.eye( self._mat_adj_size ) 
-        else:
-            mat = zeros( (self._mat_adj_size, self._mat_adj_size) )
-            for i in range(p):
-                mat = mat - self._mat.hat_adj(self._vecs[i]) @ self.__ptan_map_elem(p-(i+1))
-            return mat
-
-    def ptan_map(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        mat = np.eye(self._mat_adj_size * output_order)
-        
-        tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
-        for i in range(output_order):
-            tmp[i] = self.__ptan_map_elem(i)
-
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
-
-        return mat
     
-    def __ptan_map_inv_elem(self, p : int):
-        if p == 0:
-            return np.eye( self._mat_adj_size ) 
-        else:
-            mat = self._mat.hat_adj(self._vecs[p-1])
-            return mat
-    
-    def ptan_map_inv(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        mat = np.eye(self._mat_adj_size * output_order)
-        
-        tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
-        for i in range(output_order):
-            tmp[i] = self.__ptan_map_inv_elem(i)
-
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
-                    
-        return mat
-
     @staticmethod
-    def ptan_to_tan(dof, output_order : int):
-        '''
-        Convert matrix the pseudo tangent vector to tangent vector.
-        '''
-        mat = np.eye((dof*output_order))
-        for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] /= math.factorial(i)
-        return mat
-
-    @staticmethod
-    def tan_to_ptan(dof, output_order : int):
-        '''
-        Convert the tangent vector to pseudo tangent vector.
-        '''
-        mat = np.eye((dof*output_order))
-        for i in range(output_order):
-            mat[i*dof:(i+1)*dof,i*dof:(i+1)*dof] *= math.factorial(i)
-        return mat
-
-    def tan_map(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        return self.ptan_to_tan(self._mat_adj_size, output_order) @ self.ptan_map(output_order)
-
-    def tan_map_inv(self, output_order = None):
-        output_order = self.__check_output_order(output_order)
-        return self.ptan_map_inv(output_order) @ self.tan_to_ptan(self._mat_adj_size, output_order)
+    def hat_cm_commute(T, vecs : cmvec.CMVector):
+        return CMTM.__hat_cm_func(T.hat_commute, vecs)
     
+    @staticmethod
+    def hat_cm_commute_adj(T, vecs : cmvec.CMVector):
+        return CMTM.__hat_cm_func(T.hat_commute_adj, vecs)
+
     def __tangent_mat_elem(self, i : int, j : int):
         mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) )
         if i == 0:
@@ -432,8 +401,41 @@ class CMTM(Generic[T]):
         output_order = self.__check_output_order(output_order)
         return np.linalg.inv(self.tangent_mat(output_order))
 
+    def __tangent_mat_cm_elem(self, i : int, j : int):
+        mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) )
+        if i == 0:
+            return np.eye( self._mat_adj_size ) 
+        if i == j:
+            return np.eye( self._mat_adj_size ) / i
+        else:
+            for k in range(j,i):
+                mat = mat - self._mat.hat_adj(self._cmvecs.cm_vecs()[i-1-k]) @ self.__tangent_mat_elem(k, j) 
+            return mat / i
+
+    def tangent_mat_cm(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        mat = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
+
+        for i in range(output_order):
+            for j in range(i+1):
+                mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_cm_elem(i, j)
+
+        return mat
+
+    def tangent_mat_cm_inv(self, output_order = None):
+        output_order = self.__check_output_order(output_order)
+        A = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
+        B = np.eye(self._mat_adj_size * output_order) 
+
+        A[self._mat_adj_size:, :-self._mat_adj_size] = self.hat_cm_adj(type(self._mat), self._cmvecs)
+
+        values = np.repeat(np.arange(np.ceil(output_order-1).astype(int)) + 1, self._mat_adj_size)[:output_order * self._mat_adj_size]
+        np.fill_diagonal(B[self._mat_adj_size:, self._mat_adj_size:], values)
+
+        return A + B
+
     @staticmethod
-    def sub_vec(lval, rval, type = 'bframe') -> np.ndarray: 
+    def sub_vec(lval, rval, frame = 'bframe') -> np.ndarray: 
         if lval._n != rval._n:
             raise TypeError("Left operand should be same order in right operand")
         if lval._dof != rval._dof:
@@ -441,39 +443,15 @@ class CMTM(Generic[T]):
 
         dof = lval._mat._dof
         vec = np.zeros((lval._n * dof))
-        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, type)
+        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
 
         for i in range(1,lval._n):
             vec[dof*i:dof*(i+1)] = rval._vecs[i-1] - lval._vecs[i-1]
 
         return vec
-    
-    @staticmethod
-    def sub_ptan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray: 
-        '''
-        Subtract the psuedu tangent vector of two CMTM objects.
-        '''
-        if lval._n != rval._n:
-            raise TypeError("Left operand should be same order in right operand")
-        if lval._dof != rval._dof:
-            raise TypeError("Left operand should be same dof in right operand")
-
-        dof = lval._mat._dof
-        vec = np.zeros((lval._n * dof))
-        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame_type)
-        for i in range(lval._n-1):
-            vec[dof*(i+1):dof*(i+2)] = (rval._vecs[i] - lval._vecs[i])
-            for j in range(i+1):
-                vec[dof*(i+1):dof*(i+2)] += (lval._mat.hat_adj(vec[dof*j:dof*(j+1)]) @ lval._vecs[i-j])
-
-        return vec
-    
-    @staticmethod
-    def sub_tan_vec(lval, rval, frame_type = 'bframe') -> np.ndarray:
-        return lval.ptan_to_tan(lval._mat.dof(), lval._n) @ CMTM.sub_ptan_vec(lval, rval, frame_type)
 
     @staticmethod
-    def sub_tan_vec_var(lval, rval, frame_type = 'bframe') -> np.ndarray:
+    def sub_tan_vec(lval, rval, frame = 'bframe') -> np.ndarray:
         '''
         Subtract two variant CMTM objects in tangent space.
         '''
@@ -482,9 +460,9 @@ class CMTM(Generic[T]):
         if lval._dof != rval._dof:
             raise TypeError("Left operand should be same dof in right operand")
 
-        if frame_type == 'bframe':
+        if frame == 'bframe':
             vec = lval.vee(type(lval._mat), lval.mat_inv() @ (rval.mat() - lval.mat()))
-        elif frame_type == 'fframe':
+        elif frame == 'fframe':
             vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
         
         return vec.flatten()
@@ -513,14 +491,16 @@ class CMTM(Generic[T]):
                             + rval._vecs[2]
                 return CMTM(m, v)
             else:
-                TypeError("Right operand should be same size in left operand")
+                raise TypeError("Right operand should be same size in left operand")
+        elif isinstance(rval, cmvec.CMVector):
+            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ rval.cm_vec()).reshape(self._n, self._mat_adj_size))
         elif isinstance(rval, np.ndarray):
             return self.mat() @ rval
         else:
-            TypeError("Right operand should be CMTM or numpy.ndarray")
+            raise TypeError("Right operand should be CMTM or numpy.ndarray")
 
     def __repr__(self):
-        return f"CMTM(\nelem_mat=\n{self._mat},\nelem_vecs=\n{self._vecs},\nLIB='{self._lib}')"
+        return f"CMTM(\n\telem_mat=\n{self._mat},\n\telem_vecs=\n{self._vecs},\n\tLIB='{self._lib}'\n)"
     
     @classmethod
     def change_elemclass(cls, a : 'CMTM', elem_cls) -> 'CMTM':
@@ -529,3 +509,53 @@ class CMTM(Generic[T]):
         b_elem_mat = elem_cls.change_class(a._mat)
         cls.__init__(b, b_elem_mat, a._vecs, a._lib)
         return b
+    
+    def mat_var_x_arb_vec(self, 
+                            arb_vec : cmvec.CMVector,
+                            tan_var_vec : cmvec.CMVector,
+                            frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat) 
+        if frame == 'bframe':
+            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+        elif frame == 'fframe':
+            return cmvec.CMVector.set_cmvecs((cls.hat_cm_commute_adj(cls_elem, self @ arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+
+    def mat_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
+                           frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        delta X @ arb_vec = X @ hat(tan_var_vec) @ arb_vec = X @ hat_commute(arb_vec) @ tan_var_vec  (bframe)
+        delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
+        returns: 
+        X @ hat_commute(arb_vec) (bframe)
+        hat_commute(X @ arb_vec) (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat)
+        if frame == 'bframe':
+            return self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec)
+        elif frame == 'fframe':
+            return cls.hat_cm_commute_adj(cls_elem, self @ arb_vec)
+        
+    def mat_inv_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
+                           frame : str = 'bframe') -> cmvec.CMVector:
+        '''
+        delta X^-1 @ arb_vec 
+            = - X^-1 @ delta X @ X^-1 @ arb_vec
+            = - X^-1 @ X @ hat(tan_var_vec) @ X^-1 @ arb_vec
+            = -hat_commute(X^-1 @ arb_vec) @ tan_var_vec  (bframe)
+        returns: 
+        X @ hat_commute(arb_vec) (bframe)
+        hat_commute(X @ arb_vec) (fframe)
+        '''
+        cls = type(self)
+        cls_elem = type(self._mat)
+
+        if frame == 'bframe':
+            return -cls.hat_cm_commute_adj(cls_elem, self.inv() @ arb_vec)
+        elif frame == 'fframe':
+            raise NotImplementedError("Not implemented for fframe")
