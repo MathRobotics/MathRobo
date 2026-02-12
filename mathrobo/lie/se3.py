@@ -539,12 +539,10 @@ class SE3wrench(SE3):
     
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         if self.lib == 'jax':
-            mat = jnp.zeros((6, 6), dtype=self._rot.dtype)
-            mat = jnp.block([
-                [self._rot, jnp.zeros((3, 3), dtype=self._rot.dtype)],
-                [SO3.hat(self._pos, self.lib) @ self._rot, self._rot]
+            return jnp.block([
+                [self._rot, SO3.hat(self._pos, self.lib) @ self._rot],
+                [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot]
             ])
-            return mat
         elif self.lib == 'numpy':
             mat = np.zeros((6,6))
             mat[0:3,0:3] = self._rot
@@ -556,11 +554,19 @@ class SE3wrench(SE3):
         return SE3wrench(self._rot.transpose(), -self._rot.transpose() @ self._pos, self.lib)
         
     def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
-        mat = np.zeros((6,6))
-        mat[0:3,0:3] = self._rot.transpose()
-        mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos)
-        mat[3:6,3:6] = self._rot.transpose()
-        return mat
+        if self.lib == 'jax':
+            return jnp.block([
+                [self._rot.transpose(), -self._rot.transpose() @ SO3.hat(self._pos, self.lib)],
+                [jnp.zeros((3, 3), dtype=self._rot.dtype), self._rot.transpose()]
+            ])
+        elif self.lib == 'numpy':
+            mat = np.zeros((6,6))
+            mat[0:3,0:3] = self._rot.transpose()
+            mat[0:3,3:6] = -self._rot.transpose() @ SO3.hat(self._pos, self.lib)
+            mat[3:6,3:6] = self._rot.transpose()
+            return mat
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:

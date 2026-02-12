@@ -367,12 +367,16 @@ class SO3(LieAbstract):
             ca = jnp.cos(a_)
             sa = jnp.sin(a_)
 
-            A  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca)/ (n*n))
-            B  = jnp.where(a_ == 0.0, 0.0, (a_ - sa) / (n*n*n))
+            # Integral of exp(s * hat(vec)) ds on [0, a].
+            # Use the same coefficient form as the numpy path.
+            n2 = n * n
+            n3 = n2 * n
+            A  = jnp.where(n == 0.0, 0.0, (1.0 - ca) / n2)
+            B  = jnp.where(n == 0.0, 0.0, (a_ - sa) / n3)
 
-            K = jnp.where(n == 0.0, jnp.zeros((3,3)), SO3.hat(vec/n, 'jax'))
+            K = SO3.hat(vec, 'jax')
 
-            return a_*I + A * K + B * (K @ K)
+            return a*I + A * K + B * (K @ K)
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     

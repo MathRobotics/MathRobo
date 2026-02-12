@@ -4,25 +4,25 @@ Mathrobo is a lightweight library designed to support mathematical optimization 
 
 ## Installation
 
-### Clone the Repository
-Clone the repository to your local machine using:
+### Clone the repository
 
 ```bash
 git clone https://github.com/MathRobotics/MathRobo.git
+cd MathRobo
 ```
 
-### Install Dependencies
-Run the following command to install the required dependencies:
+### Install dependencies with uv
+
+Sync the environment from `pyproject.toml` and `uv.lock`:
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
-### Install the Package
-To install Mathrobo in your local environment, use:
+### Install the package in editable mode
 
 ```bash
-pip install .
+uv pip install -e .
 ```
 
 ## Examples
@@ -30,11 +30,10 @@ Refer to the examples in the `examples` folder, where you can find Jupyter noteb
 
 ## Running Tests
 
-To ensure Mathrobo is working correctly, run the tests using:
+Run the test suite with uv:
 
 ```bash
-cd tests
-pytest
+uv run pytest
 ```
 
 ## Contributing
