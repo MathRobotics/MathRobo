@@ -75,6 +75,200 @@ class CMTM(Generic[T]):
                     mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._cmvecs.cm_vecs()[i])
 
                 return mat / p
+
+    def _mat_blocks_numpy(self, output_order: int) -> np.ndarray:
+        mat0 = self._mat.mat()
+        dtype = mat0.dtype
+        mat_size = self._mat_size
+        blocks = np.zeros((output_order, mat_size, mat_size), dtype=dtype)
+
+        if output_order == 0:
+            return blocks
+
+        blocks[0] = mat0
+        if output_order == 1:
+            return blocks
+
+        cm_vecs = self._cmvecs.cm_vecs()
+        hats = np.empty((output_order - 1, mat_size, mat_size), dtype=dtype)
+        for i in range(output_order - 1):
+            hats[i] = self._mat.hat(cm_vecs[i])
+
+        for k in range(1, output_order):
+            acc = np.zeros((mat_size, mat_size), dtype=dtype)
+            for i in range(k):
+                acc += blocks[k - i - 1] @ hats[i]
+            blocks[k] = acc / k
+
+        return blocks
+
+    def _mat_adj_blocks_numpy(self, output_order: int) -> np.ndarray:
+        mat0 = self._mat.mat_adj()
+        dtype = mat0.dtype
+        mat_size = self._mat_adj_size
+        blocks = np.zeros((output_order, mat_size, mat_size), dtype=dtype)
+
+        if output_order == 0:
+            return blocks
+
+        blocks[0] = mat0
+        if output_order == 1:
+            return blocks
+
+        cm_vecs = self._cmvecs.cm_vecs()
+        hats = np.empty((output_order - 1, mat_size, mat_size), dtype=dtype)
+        for i in range(output_order - 1):
+            hats[i] = self._mat.hat_adj(cm_vecs[i])
+
+        for k in range(1, output_order):
+            acc = np.zeros((mat_size, mat_size), dtype=dtype)
+            for i in range(k):
+                acc += blocks[k - i - 1] @ hats[i]
+            blocks[k] = acc / k
+
+        return blocks
+
+    def _mat_inv_blocks_numpy(self, output_order: int) -> np.ndarray:
+        mat0 = self._mat.mat_inv()
+        dtype = mat0.dtype
+        mat_size = self._mat_size
+        blocks = np.zeros((output_order, mat_size, mat_size), dtype=dtype)
+
+        if output_order == 0:
+            return blocks
+
+        blocks[0] = mat0
+        if output_order == 1:
+            return blocks
+
+        cm_vecs = self._cmvecs.cm_vecs()
+        hats = np.empty((output_order - 1, mat_size, mat_size), dtype=dtype)
+        for i in range(output_order - 1):
+            hats[i] = self._mat.hat(cm_vecs[i])
+
+        for k in range(1, output_order):
+            acc = np.zeros((mat_size, mat_size), dtype=dtype)
+            for i in range(k):
+                acc -= hats[i] @ blocks[k - i - 1]
+            blocks[k] = acc / k
+
+        return blocks
+
+    def _mat_inv_adj_blocks_numpy(self, output_order: int) -> np.ndarray:
+        mat0 = self._mat.mat_inv_adj()
+        dtype = mat0.dtype
+        mat_size = self._mat_adj_size
+        blocks = np.zeros((output_order, mat_size, mat_size), dtype=dtype)
+
+        if output_order == 0:
+            return blocks
+
+        blocks[0] = mat0
+        if output_order == 1:
+            return blocks
+
+        cm_vecs = self._cmvecs.cm_vecs()
+        hats = np.empty((output_order - 1, mat_size, mat_size), dtype=dtype)
+        for i in range(output_order - 1):
+            hats[i] = self._mat.hat_adj(cm_vecs[i])
+
+        for k in range(1, output_order):
+            acc = np.zeros((mat_size, mat_size), dtype=dtype)
+            for i in range(k):
+                acc -= hats[i] @ blocks[k - i - 1]
+            blocks[k] = acc / k
+
+        return blocks
+
+    @staticmethod
+    def _lower_toeplitz_numpy(blocks: np.ndarray) -> np.ndarray:
+        output_order = blocks.shape[0]
+        if output_order == 0:
+            return np.zeros((0, 0), dtype=blocks.dtype)
+
+        mat_size = blocks.shape[1]
+        mat = np.zeros((mat_size * output_order, mat_size * output_order), dtype=blocks.dtype)
+        for i in range(output_order):
+            blk = blocks[i]
+            for j in range(i, output_order):
+                mat[mat_size*j:mat_size*(j+1), mat_size*(j-i):mat_size*(j-i+1)] = blk
+        return mat
+
+    @staticmethod
+    def _lower_tri_blocks_numpy(blocks: np.ndarray, col_scales: np.ndarray = None) -> np.ndarray:
+        output_order = blocks.shape[0]
+        if output_order == 0:
+            return np.zeros((0, 0), dtype=blocks.dtype)
+
+        mat_size = blocks.shape[2]
+        mat = np.zeros((mat_size * output_order, mat_size * output_order), dtype=blocks.dtype)
+        for i in range(output_order):
+            for j in range(i + 1):
+                blk = blocks[i, j]
+                if col_scales is not None:
+                    blk = blk * col_scales[j]
+                mat[mat_size*i:mat_size*(i+1), mat_size*j:mat_size*(j+1)] = blk
+        return mat
+
+    def _tangent_tables_numpy(self, output_order: int) -> tuple[np.ndarray, np.ndarray]:
+        mat0 = self._mat.mat_adj()
+        dtype = mat0.dtype
+        mat_size = self._mat_adj_size
+        tangent = np.zeros((output_order, output_order, mat_size, mat_size), dtype=dtype)
+        tangent_cm = np.zeros_like(tangent)
+
+        if output_order == 0:
+            return tangent, tangent_cm
+
+        eye = np.eye(mat_size, dtype=dtype)
+        tangent[0, 0] = eye
+        tangent_cm[0, 0] = eye
+        if output_order == 1:
+            return tangent, tangent_cm
+
+        cm_vecs = self._cmvecs.cm_vecs()
+        hats = np.empty((output_order - 1, mat_size, mat_size), dtype=dtype)
+        for i in range(output_order - 1):
+            hats[i] = self._mat.hat_adj(cm_vecs[i])
+
+        for i in range(1, output_order):
+            for j in range(i + 1):
+                if i == j:
+                    diag = eye / i
+                    tangent[i, j] = diag
+                    tangent_cm[i, j] = diag
+                    continue
+
+                acc = np.zeros((mat_size, mat_size), dtype=dtype)
+                for k in range(i - j):
+                    acc -= hats[k] @ tangent[i - k - 1, j]
+                tangent[i, j] = acc / i
+
+                acc_cm = np.zeros((mat_size, mat_size), dtype=dtype)
+                for k in range(j, i):
+                    acc_cm -= hats[i - 1 - k] @ tangent[k, j]
+                tangent_cm[i, j] = acc_cm / i
+
+        return tangent, tangent_cm
+
+    @staticmethod
+    def _set_from_mat_blocks(T, mat_blocks: np.ndarray, LIB: str = 'numpy') -> 'CMTM':
+        n = mat_blocks.shape[0]
+        size = mat_blocks.shape[1]
+        m = T.set_mat(mat_blocks[0])
+        vs = np.zeros((n - 1, T.dof()), dtype=mat_blocks.dtype)
+
+        if n == 1:
+            return CMTM(m, vs, LIB=LIB)
+
+        m_inv = m.inv()
+        for i in range(n - 1):
+            m_tmp = np.zeros((size, size), dtype=mat_blocks.dtype)
+            for j in range(i):
+                m_tmp += mat_blocks[i - j] @ T.hat(vs[j] / math.factorial(j))
+            vs[i] = T.vee(m_inv @ (mat_blocks[i + 1] * (i + 1) - m_tmp)) * math.factorial(i)
+
+        return CMTM(m, vs, LIB=LIB)
         
     def mat(self, output_order = None):
         if self._lib == 'jax':
@@ -111,18 +305,8 @@ class CMTM(Generic[T]):
             return big_mat  
         elif self._lib == 'numpy':
             output_order = self.__check_output_order(output_order)
-            
-            mat = np.eye(self._mat_size * output_order)
-
-            tmp = np.zeros((output_order, self._mat_size, self._mat_size))
-            for i in range(output_order):
-                tmp[i] = self.__mat_elem(i)
-
-            for i in range(output_order):
-                for j in range(i, output_order):
-                        mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
-
-            return mat
+            tmp = self._mat_blocks_numpy(output_order)
+            return self._lower_toeplitz_numpy(tmp)
     
     def __mat_adj_elem(self, p : int):
         if p == 0:
@@ -136,18 +320,8 @@ class CMTM(Generic[T]):
         
     def mat_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        
-        mat = np.eye(self._mat_adj_size * output_order)
-
-        tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
-        for i in range(output_order):
-            tmp[i] = self.__mat_adj_elem(i)
-
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
-
-        return mat
+        tmp = self._mat_adj_blocks_numpy(output_order)
+        return self._lower_toeplitz_numpy(tmp)
 
     @staticmethod
     def set_mat(T, mat : np.ndarray, LIB = 'numpy'):
@@ -159,22 +333,13 @@ class CMTM(Generic[T]):
      
         n = int(mat.shape[0] / size)
 
-        tmp = np.zeros((n, size, size))
+        tmp = np.zeros((n, size, size), dtype=mat.dtype)
         for i in range(n):
             for j in range(n-i):
                 tmp[i] += mat[(j+i)*size:(j+i+1)*size, j*size:(j+1)*size]
             tmp[i] = tmp[i] / (n-i)
-            
-        m = T.set_mat(tmp[0])
-        vs = np.zeros((n-1, T.dof()))
 
-        for i in range(n-1):
-            m_tmp = np.zeros((size, size))
-            for j in range(i):
-                m_tmp += tmp[i-j] @ T.hat(vs[j]/math.factorial(j))
-            vs[i] = T.vee( m.inv() @  ( tmp[i+1] * (i+1) - m_tmp) ) * math.factorial(i)
-
-        return CMTM(m, vs)
+        return CMTM._set_from_mat_blocks(T, tmp, LIB=LIB)
     
     @staticmethod
     def eye(T, output_order = 3):
@@ -225,18 +390,8 @@ class CMTM(Generic[T]):
     
     def mat_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        
-        mat = np.eye(self._mat_size * output_order)
-
-        tmp = np.zeros((output_order, self._mat_size, self._mat_size))
-        for i in range(output_order):
-            tmp[i] = self.__mat_inv_elem(i)
-
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_size*j:self._mat_size*(j+1),self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[i]
-
-        return mat
+        tmp = self._mat_inv_blocks_numpy(output_order)
+        return self._lower_toeplitz_numpy(tmp)
     
     def __mat_inv_adj_elem(self, p : int):
         if p == 0:
@@ -250,18 +405,8 @@ class CMTM(Generic[T]):
     
     def mat_inv_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-
-        mat = np.eye(self._mat_adj_size * output_order)
-
-        tmp = np.zeros((output_order, self._mat_adj_size, self._mat_adj_size))
-        for i in range(output_order):
-            tmp[i] = self.__mat_inv_adj_elem(i)
-
-        for i in range(output_order):
-            for j in range(i, output_order):
-                    mat[self._mat_adj_size*j:self._mat_adj_size*(j+1),self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[i]
-
-        return mat
+        tmp = self._mat_inv_adj_blocks_numpy(output_order)
+        return self._lower_toeplitz_numpy(tmp)
     
     @staticmethod
     def __hat_func(hat, vecs):
@@ -387,15 +532,11 @@ class CMTM(Generic[T]):
 
     def tangent_mat(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        mat = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
-
-        for i in range(output_order):
-            for j in range(i+1):
-                mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_elem(i, j)
-                if j > 1:
-                    mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] *= 1/math.factorial(j-1)
-
-        return mat
+        tangent, _ = self._tangent_tables_numpy(output_order)
+        scales = np.ones(output_order, dtype=tangent.dtype)
+        for j in range(2, output_order):
+            scales[j] = 1 / math.factorial(j - 1)
+        return self._lower_tri_blocks_numpy(tangent, col_scales=scales)
 
     def tangent_mat_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
@@ -414,13 +555,8 @@ class CMTM(Generic[T]):
 
     def tangent_mat_cm(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        mat = np.zeros((self._mat_adj_size * output_order, self._mat_adj_size * output_order))
-
-        for i in range(output_order):
-            for j in range(i+1):
-                mat[self._mat_adj_size*i:self._mat_adj_size*(i+1),self._mat_adj_size*j:self._mat_adj_size*(j+1)] = self.__tangent_mat_cm_elem(i, j)
-
-        return mat
+        _, tangent_cm = self._tangent_tables_numpy(output_order)
+        return self._lower_tri_blocks_numpy(tangent_cm)
 
     def tangent_mat_cm_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
@@ -471,8 +607,22 @@ class CMTM(Generic[T]):
         if isinstance(rval, CMTM):
             if self._n == rval._n:
                 if self._n > 4:
-                    # tentative implementation
-                    return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat())
+                    if self._lib == 'numpy' and rval._lib == 'numpy':
+                        l_blocks = self._mat_blocks_numpy(self._n)
+                        r_blocks = rval._mat_blocks_numpy(rval._n)
+                        dtype = np.result_type(l_blocks.dtype, r_blocks.dtype)
+                        mat_size = self._mat_size
+                        out_blocks = np.zeros((self._n, mat_size, mat_size), dtype=dtype)
+
+                        for k in range(self._n):
+                            acc = np.zeros((mat_size, mat_size), dtype=dtype)
+                            for i in range(k + 1):
+                                acc += l_blocks[i] @ r_blocks[k - i]
+                            out_blocks[k] = acc
+
+                        return CMTM._set_from_mat_blocks(type(self._mat), out_blocks, LIB=self._lib)
+                    # fallback for non-numpy backends
+                    return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat(), LIB=self._lib)
                 m = self._mat @ rval._mat
                 v = np.zeros((self._n-1,self._mat.dof()))
                 if self._n > 1:
