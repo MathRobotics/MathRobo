@@ -28,3 +28,9 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/MathRobotics/MathRobo"
+
+[dependency-groups]
+dev = [
+    "build>=1.4.0",
+    "twine>=6.2.0",
+]
