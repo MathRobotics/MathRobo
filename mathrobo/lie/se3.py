@@ -157,11 +157,17 @@ class SE3(LieAbstract):
 
             return jnp.concatenate((upper, lower), axis=0)  # (4,4)
         elif LIB == 'numpy':
-            mat = np.zeros((4,4))
-
-            mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
-            mat[0:3,3] = vec[3:6]
-
+            wx, wy, wz, vx, vy, vz = vec
+            mat = np.zeros((4, 4))
+            mat[0, 1] = -wz
+            mat[0, 2] = wy
+            mat[1, 0] = wz
+            mat[1, 2] = -wx
+            mat[2, 0] = -wy
+            mat[2, 1] = wx
+            mat[0, 3] = vx
+            mat[1, 3] = vy
+            mat[2, 3] = vz
             return mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
@@ -366,21 +372,38 @@ class SE3(LieAbstract):
         '''
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
-        
-        w, v = vec[:3], vec[3:]
-        w_hat = SO3.hat(w, LIB)
-        v_hat = SO3.hat(v, LIB)
 
         if LIB == 'jax':
+            w, v = vec[:3], vec[3:]
+            w_hat = SO3.hat(w, LIB)
+            v_hat = SO3.hat(v, LIB)
             mat = jnp.block([
                 [w_hat, jnp.zeros((3, 3), dtype=vec.dtype)],
                 [v_hat, w_hat]
             ])
         elif LIB == 'numpy':
+            wx, wy, wz, vx, vy, vz = vec
             mat = np.zeros((6, 6))
-            mat[0:3, 0:3] = w_hat
-            mat[3:6, 0:3] = v_hat
-            mat[3:6, 3:6] = w_hat
+            mat[0, 1] = -wz
+            mat[0, 2] = wy
+            mat[1, 0] = wz
+            mat[1, 2] = -wx
+            mat[2, 0] = -wy
+            mat[2, 1] = wx
+
+            mat[3, 1] = -vz
+            mat[3, 2] = vy
+            mat[4, 0] = vz
+            mat[4, 2] = -vx
+            mat[5, 0] = -vy
+            mat[5, 1] = vx
+
+            mat[3, 4] = -wz
+            mat[3, 5] = wy
+            mat[4, 3] = wz
+            mat[4, 5] = -wx
+            mat[5, 3] = -wy
+            mat[5, 4] = wx
         else:
             raise ValueError("Unsupported library. Choose 'numpy', 'jax'.")
 
