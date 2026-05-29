@@ -4,14 +4,26 @@ Mathrobo is a Python library for robotics-oriented mathematical computation, inc
 
 ## Installation
 
-### Clone the repository
+Install the latest release from PyPI:
+
+```bash
+pip install mathrobo
+```
+
+If you use uv, you can add Mathrobo to your project with:
+
+```bash
+uv add mathrobo
+```
+
+### Development install
+
+For local development, clone the repository:
 
 ```bash
 git clone https://github.com/MathRobotics/MathRobo.git
 cd MathRobo
 ```
-
-### Install dependencies with uv
 
 Sync the environment from `pyproject.toml` and `uv.lock`:
 
@@ -19,7 +31,7 @@ Sync the environment from `pyproject.toml` and `uv.lock`:
 uv sync
 ```
 
-### Install the package in editable mode
+Install the package in editable mode:
 
 ```bash
 uv pip install -e .
