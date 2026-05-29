@@ -98,6 +98,10 @@ Run the test suite with uv:
 uv run pytest
 ```
 
+## Changelog
+
+- Removed SymPy as a runtime dependency. Mathrobo now supports the NumPy and JAX code paths only, and `uv.lock` no longer includes SymPy or mpmath.
+
 ## Contributing
 
 Contributions are welcome! Feel free to report issues, suggest features, or submit pull requests.
