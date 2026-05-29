@@ -54,6 +54,16 @@ def test_se3_exp_jax_matches_matrix_exponential():
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
 
+def test_se3_exp_adj_jax_matches_numpy():
+    vec = np.array([0.3, -0.6, 0.9, 1.2, -0.4, 0.7], dtype=np.float64)
+    a = 0.5
+
+    expected = mr.SE3.exp_adj(vec, a, "numpy")
+    actual = np.array(mr.SE3.exp_adj(jnp.array(vec), a, "jax"))
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+
 def test_se3_exp_integ_adj_jax_matches_integral_reference():
     vec = np.array([0.3, -0.6, 0.9, 1.2, -0.4, 0.7], dtype=np.float64)
     a = 0.5
@@ -89,3 +99,68 @@ def test_se3wrench_mat_inv_adj_jax_is_jittable():
 
     assert isinstance(out, jax.Array)
     assert out.shape == (6, 6)
+
+
+def test_jax_quaternion_constructors_return_jax_matrices():
+    quaternion = jnp.array([1.0, 0.0, 0.0, 0.0])
+
+    so3_mat = mr.SO3.set_quaternion(quaternion, "jax").mat()
+    se3_mat = mr.SE3.set_pos_quaternion(jnp.zeros(3), quaternion, "jax").mat()
+
+    assert isinstance(so3_mat, jax.Array)
+    assert isinstance(se3_mat, jax.Array)
+    assert so3_mat.shape == (3, 3)
+    assert se3_mat.shape == (4, 4)
+
+
+def test_jax_matmul_vectors_return_arrays():
+    so3_vec = mr.SO3.eye("jax") @ jnp.ones(3)
+    se3_pos = mr.SE3.eye("jax") @ jnp.ones(3)
+    se3_adj = mr.SE3.eye("jax") @ jnp.ones(6)
+
+    assert isinstance(so3_vec, jax.Array)
+    assert isinstance(se3_pos, jax.Array)
+    assert isinstance(se3_adj, jax.Array)
+    assert so3_vec.shape == (3,)
+    assert se3_pos.shape == (3,)
+    assert se3_adj.shape == (6,)
+
+
+def test_se3_commute_helpers_jax_match_numpy():
+    vec = np.arange(1.0, 7.0)
+
+    np.testing.assert_allclose(
+        np.array(mr.SE3.hat_commute(jnp.array(vec), "jax")),
+        mr.SE3.hat_commute(vec, "numpy"),
+    )
+    np.testing.assert_allclose(
+        np.array(mr.SE3wrench.hat_commute(jnp.array(vec), "jax")),
+        mr.SE3wrench.hat_commute(vec, "numpy"),
+    )
+    np.testing.assert_allclose(
+        np.array(mr.SE3wrench.hat_commute_adj(jnp.array(vec), "jax")),
+        mr.SE3wrench.hat_commute_adj(vec, "numpy"),
+    )
+
+
+def test_inertia_jax_matches_numpy():
+    so3_vec = np.arange(1.0, 7.0)
+    se3_hat_vec = np.arange(1.0, 11.0)
+    se3_commute_vec = np.arange(1.0, 7.0)
+
+    np.testing.assert_allclose(
+        np.array(mr.SO3inertia.hat(jnp.array(so3_vec), "jax")),
+        mr.SO3inertia.hat(so3_vec, "numpy"),
+    )
+    np.testing.assert_allclose(
+        np.array(mr.SO3inertia.hat_commute(jnp.array(so3_vec[:3]), "jax")),
+        mr.SO3inertia.hat_commute(so3_vec[:3], "numpy"),
+    )
+    np.testing.assert_allclose(
+        np.array(mr.SE3inertia.hat(jnp.array(se3_hat_vec), "jax")),
+        mr.SE3inertia.hat(se3_hat_vec, "numpy"),
+    )
+    np.testing.assert_allclose(
+        np.array(mr.SE3inertia.hat_commute(jnp.array(se3_commute_vec), "jax")),
+        mr.SE3inertia.hat_commute(se3_commute_vec, "numpy"),
+    )

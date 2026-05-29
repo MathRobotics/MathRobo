@@ -109,7 +109,7 @@ class SO3(LieAbstract):
     def set_quaternion(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> 'SO3':
         assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
         assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
-        return SO3(SO3.quaternion_to_mat(quaternion), LIB)
+        return SO3(SO3.quaternion_to_mat(quaternion, LIB), LIB)
     
     @staticmethod
     def set_euler(euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
@@ -456,10 +456,10 @@ class SO3(LieAbstract):
     def __matmul__(self, rval):
         if isinstance(rval, SO3):
             return SO3(SO3.so3_mul(self._rot, rval._rot), self.lib)
-        elif isinstance(rval, np.ndarray):
+        elif isinstance(rval, (np.ndarray, jnp.ndarray)):
             return SO3.so3_mul(self._rot, rval)
         else:
-            TypeError("Right operand should be SO3 or numpy.ndarray")
+            raise TypeError("Right operand should be SO3, numpy.ndarray, or jax.ndarray")
 
     @classmethod
     def rand(cls, LIB : str = 'numpy') -> 'SO3':
@@ -498,36 +498,37 @@ class SO3wrench(SO3):
 class SO3inertia(SO3):
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        mat = zeros((3,3), LIB)
-
-        mat[0,0] = vec[0]
-        mat[0,1] = vec[5]
-        mat[0,2] = vec[4]
-        mat[1,0] = vec[5]
-        mat[1,1] = vec[1]
-        mat[1,2] = vec[3]
-        mat[2,0] = vec[4]
-        mat[2,1] = vec[3]
-        mat[2,2] = vec[2]
-
-        return mat
+        if LIB == 'jax':
+            return jnp.array([
+                [vec[0], vec[5], vec[4]],
+                [vec[5], vec[1], vec[3]],
+                [vec[4], vec[3], vec[2]],
+            ], dtype=vec.dtype)
+        elif LIB == 'numpy':
+            return np.array([
+                [vec[0], vec[5], vec[4]],
+                [vec[5], vec[1], vec[3]],
+                [vec[4], vec[3], vec[2]],
+            ], dtype=vec.dtype)
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        mat = zeros((3, 6), LIB)
-
-        mat[0,0] = vec[0]
-        mat[1,1] = vec[1]
-        mat[2,2] = vec[2]
-
-        mat[1,5] = vec[0]
-        mat[2,4] = vec[0]
-        mat[2,3] = vec[1]
-        mat[0,5] = vec[1]
-        mat[0,4] = vec[2]
-        mat[1,3] = vec[2]
-
-        return mat
+        if LIB == 'jax':
+            return jnp.array([
+                [vec[0],      0,      0,      0, vec[2], vec[1]],
+                [     0, vec[1],      0, vec[2],      0, vec[0]],
+                [     0,      0, vec[2], vec[1], vec[0],      0],
+            ], dtype=vec.dtype)
+        elif LIB == 'numpy':
+            return np.array([
+                [vec[0],      0,      0,      0, vec[2], vec[1]],
+                [     0, vec[1],      0, vec[2],      0, vec[0]],
+                [     0,      0, vec[2], vec[1], vec[0],      0],
+            ], dtype=vec.dtype)
+        else:
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:

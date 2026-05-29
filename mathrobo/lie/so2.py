@@ -92,7 +92,7 @@ class SO2(LieAbstract):
     def __matmul__(self, rval):
         if isinstance(rval, SO2):
             return SO2(self._rot @ rval._rot)
-        elif isinstance(rval, np.ndarray):
+        elif isinstance(rval, (np.ndarray, jnp.ndarray)):
             return self._rot @ rval
         else:
-            TypeError("Right operand should be SO2 or numpy.ndarray")
+            raise TypeError("Right operand should be SO2, numpy.ndarray, or jax.ndarray")

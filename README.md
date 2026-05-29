@@ -25,10 +25,10 @@ git clone https://github.com/MathRobotics/MathRobo.git
 cd MathRobo
 ```
 
-Sync the environment from `pyproject.toml` and `uv.lock`:
+Sync the development environment from `pyproject.toml` and `uv.lock`:
 
 ```bash
-uv sync
+uv sync --extra dev
 ```
 
 Install the package in editable mode:
@@ -107,7 +107,7 @@ print(ys)
 Run the test suite with uv:
 
 ```bash
-uv run pytest
+uv run --extra dev pytest
 ```
 
 ## Changelog
