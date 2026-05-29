@@ -1,6 +1,6 @@
 # Mathrobo
 
-Mathrobo is a lightweight library designed to support mathematical optimization and computations related to robotics.
+Mathrobo is a Python library for robotics-oriented mathematical computation, including Lie group operations, spatial transformations, numerical differentiation/integration, and B-spline utilities.
 
 ## Installation
 
