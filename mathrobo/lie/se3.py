@@ -336,7 +336,7 @@ class SE3(LieAbstract):
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
-        sympyの場合,vec[0:3]の大きさは1を想定
+        vec[0:3]の大きさは1を想定
         '''
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
@@ -417,7 +417,7 @@ class SE3(LieAbstract):
     def exp_adj(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
         SE3の随伴表現の計算
-        sympyの場合,vec[0:3]の大きさは1を想定
+        vec[0:3]の大きさは1を想定
         '''
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")

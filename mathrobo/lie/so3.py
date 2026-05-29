@@ -323,7 +323,7 @@ class SO3(LieAbstract):
 
             return I + A * K + B * (K @ K)
         else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'sympy'.")
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
