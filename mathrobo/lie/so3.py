@@ -3,6 +3,7 @@ from .lie_abst import *
 from typing import Union
 
 import jax
+from .._batch import array_lib, matvec, transpose_last
 
 class SO3(LieAbstract):
     _dof = 3
@@ -226,10 +227,10 @@ class SO3(LieAbstract):
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     def inv(self) -> 'SO3':
-        return SO3(self._rot.transpose(), self.lib)
+        return SO3(transpose_last(self._rot), self.lib)
 
     def mat_inv(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._rot.transpose()
+        return transpose_last(self._rot)
 
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         return self._rot
@@ -239,22 +240,31 @@ class SO3(LieAbstract):
         return SO3(mat, LIB)
 
     def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._rot.transpose()
+        return transpose_last(self._rot)
 
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if vec.shape[-1] != 3:
+            raise ValueError("Input vector must be of size 3.")
+        xp = array_lib(LIB)
+        vx, vy, vz = vec[..., 0], vec[..., 1], vec[..., 2]
+        mat = xp.zeros(vec.shape[:-1] + (3, 3), dtype=vec.dtype)
         if LIB == "jax":
-            vx, vy, vz = vec
-            return jnp.array([
-                            [   0, -vz,  vy],
-                            [  vz,   0, -vx],
-                            [ -vy,  vx,   0]], dtype=vec.dtype)
+            mat = mat.at[..., 0, 1].set(-vz)
+            mat = mat.at[..., 0, 2].set(vy)
+            mat = mat.at[..., 1, 0].set(vz)
+            mat = mat.at[..., 1, 2].set(-vx)
+            mat = mat.at[..., 2, 0].set(-vy)
+            mat = mat.at[..., 2, 1].set(vx)
+            return mat
         elif LIB == "numpy":
-            vx, vy, vz = vec
-            return np.array([
-                            [   0, -vz,  vy],
-                            [  vz,   0, -vx],
-                            [ -vy,  vx,   0]], dtype=vec.dtype)
+            mat[..., 0, 1] = -vz
+            mat[..., 0, 2] = vy
+            mat[..., 1, 0] = vz
+            mat[..., 1, 2] = -vx
+            mat[..., 2, 0] = -vy
+            mat[..., 2, 1] = vx
+            return mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
@@ -264,159 +274,73 @@ class SO3(LieAbstract):
 
     @staticmethod
     def vee(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        if vec_hat.shape[-2:] != (3, 3):
+            raise ValueError("Input matrix must be of size (...,3,3).")
         if LIB == 'jax':
-            return jnp.array([
-                0.5 * (vec_hat[2, 1] - vec_hat[1, 2]),
-                0.5 * (vec_hat[0, 2] - vec_hat[2, 0]),
-                0.5 * (vec_hat[1, 0] - vec_hat[0, 1])
-            ], dtype=vec_hat.dtype)
+            return jnp.stack([
+                0.5 * (vec_hat[..., 2, 1] - vec_hat[..., 1, 2]),
+                0.5 * (vec_hat[..., 0, 2] - vec_hat[..., 2, 0]),
+                0.5 * (vec_hat[..., 1, 0] - vec_hat[..., 0, 1])
+            ], axis=-1)
         elif LIB == 'numpy':
-            return np.array([
-                0.5 * (vec_hat[2, 1] - vec_hat[1, 2]),
-                0.5 * (vec_hat[0, 2] - vec_hat[2, 0]),
-                0.5 * (vec_hat[1, 0] - vec_hat[0, 1])
-            ], dtype=vec_hat.dtype)
+            return np.stack([
+                0.5 * (vec_hat[..., 2, 1] - vec_hat[..., 1, 2]),
+                0.5 * (vec_hat[..., 0, 2] - vec_hat[..., 2, 0]),
+                0.5 * (vec_hat[..., 1, 0] - vec_hat[..., 0, 1])
+            ], axis=-1).astype(vec_hat.dtype, copy=False)
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if LIB == 'numpy':
-            theta = np.linalg.norm(vec)
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
-            else:
-                a_ = a
-
-            if math.isclose(theta, 0):
-                return np.identity(3)
-            else:
-                x, y, z = vec / theta
-
-            sa = np.sin(a_)
-            ca = np.cos(a_)
-
-            mat = np.zeros((3,3))
-
-            mat[0,0] = ca + (1-ca)*x*x
-            mat[0,1] = (1-ca)*x*y - sa*z
-            mat[0,2] = (1-ca)*x*z + sa*y
-            mat[1,0] = (1-ca)*y*x + sa*z
-            mat[1,1] = ca + (1-ca)*y*y
-            mat[1,2] = (1-ca)*y*z - sa*x
-            mat[2,0] = (1-ca)*z*x - sa*y
-            mat[2,1] = (1-ca)*z*y + sa*x
-            mat[2,2] = ca + (1-ca)*z*z
-
-            return mat
-        elif LIB == 'jax':
-            n = jnp.linalg.norm(vec)
-            a_  = n * a
-            I  = jnp.eye(3, dtype=vec.dtype)
-            ca = jnp.cos(a_)
-            sa = jnp.sin(a_)
-
-            A  = jnp.where(a_ == 0.0, 0.0, sa)
-            B  = jnp.where(a_ == 0.0, 0.0, (1.0 - ca))
-
-            K = jnp.where(n == 0.0, jnp.zeros((3,3)), SO3.hat(vec/n, 'jax'))
-
-            return I + A * K + B * (K @ K)
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+        if vec.shape[-1] != 3:
+            raise ValueError("Input vector must be of size 3.")
+        xp = array_lib(LIB)
+        theta = xp.linalg.norm(vec, axis=-1)
+        a_theta = a * theta
+        K = SO3.hat(vec, LIB)
+        K2 = K @ K
+        theta_safe = xp.where(theta == 0, 1.0, theta)
+        theta2 = theta_safe * theta_safe
+        A = xp.where(theta == 0, a, xp.sin(a_theta) / theta_safe)
+        B = xp.where(theta == 0, 0.0, (1.0 - xp.cos(a_theta)) / theta2)
+        I = xp.eye(3, dtype=vec.dtype)
+        return I + A[..., None, None] * K + B[..., None, None] * K2
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if LIB == 'numpy':
-            theta = np.linalg.norm(vec)
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
-            else:
-                a_ = a
-
-            if math.isclose(theta, 0):
-                return a*np.identity(3)
-            else:
-                x, y, z = vec/theta
-                k = 1./theta
-
-            sa = np.sin(a_)
-            ca = np.cos(a_)
-
-            mat = np.zeros((3,3))
-
-            u = a_-sa
-            v = (1-ca)
-
-            mat[0,0] = k*(sa + u*x*x)
-            mat[0,1] = k*(u*x*y - v*z)
-            mat[0,2] = k*(u*z*x + v*y)
-            mat[1,0] = k*(u*x*y + v*z)
-            mat[1,1] = k*(sa + u*y*y)
-            mat[1,2] = k*(u*y*z - v*x)
-            mat[2,0] = k*(u*z*x - v*y)
-            mat[2,1] = k*(u*y*z + v*x)
-            mat[2,2] = k*(sa + u*z*z)
-
-            return mat
-
-        elif LIB == 'jax':
-            n = jnp.linalg.norm(vec)
-            a_  = n * a
-            I  = jnp.eye(3, dtype=vec.dtype)
-            ca = jnp.cos(a_)
-            sa = jnp.sin(a_)
-
-            # Integral of exp(s * hat(vec)) ds on [0, a].
-            # Use the same coefficient form as the numpy path.
-            n2 = n * n
-            n3 = n2 * n
-            A  = jnp.where(n == 0.0, 0.0, (1.0 - ca) / n2)
-            B  = jnp.where(n == 0.0, 0.0, (a_ - sa) / n3)
-
-            K = SO3.hat(vec, 'jax')
-
-            return a*I + A * K + B * (K @ K)
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+        if vec.shape[-1] != 3:
+            raise ValueError("Input vector must be of size 3.")
+        xp = array_lib(LIB)
+        theta = xp.linalg.norm(vec, axis=-1)
+        a_theta = a * theta
+        K = SO3.hat(vec, LIB)
+        K2 = K @ K
+        theta_safe = xp.where(theta == 0, 1.0, theta)
+        theta2 = theta_safe * theta_safe
+        theta3 = theta2 * theta_safe
+        A = xp.where(theta == 0, 0.0, (1.0 - xp.cos(a_theta)) / theta2)
+        B = xp.where(theta == 0, 0.0, (a_theta - xp.sin(a_theta)) / theta3)
+        I = xp.eye(3, dtype=vec.dtype)
+        return a * I + A[..., None, None] * K + B[..., None, None] * K2
     
     @staticmethod
     def exp_integ2nd(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        if LIB == 'numpy':
-            theta = np.linalg.norm(vec)
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
-            else:
-                a_ = a
-
-            if math.isclose(theta, 0):
-                return a*np.identity(3)
-            else:
-                x, y, z = vec/theta
-                k = 1./(theta*theta)
-
-            sa = np.sin(a_)
-            ca = np.cos(a_)
-
-            mat = np.zeros((3,3))
-
-            u = 1-ca
-            v = a_-sa
-            w = 0.5*a_**2-1+ca
-
-            mat[0,0] = k*(u  + w*x*x)
-            mat[0,1] = k*(w*x*y - v*z)
-            mat[0,2] = k*(w*z*x + v*y)
-            mat[1,0] = k*(w*x*y + v*z)
-            mat[1,1] = k*(u  + w*y*y)
-            mat[1,2] = k*(w*y*z - v*x)
-            mat[2,0] = k*(w*z*x - v*y)
-            mat[2,1] = k*(w*y*z + v*x)
-            mat[2,2] = k*(u  + w*z*z)
-            
-            return mat
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy'.")
+        if vec.shape[-1] != 3:
+            raise ValueError("Input vector must be of size 3.")
+        xp = array_lib(LIB)
+        theta = xp.linalg.norm(vec, axis=-1)
+        a_theta = a * theta
+        K = SO3.hat(vec, LIB)
+        K2 = K @ K
+        theta_safe = xp.where(theta == 0, 1.0, theta)
+        theta2 = theta_safe * theta_safe
+        theta3 = theta2 * theta_safe
+        theta4 = theta2 * theta2
+        A = xp.where(theta == 0, 0.0, (a_theta - xp.sin(a_theta)) / theta3)
+        B = xp.where(theta == 0, 0.0, (0.5 * a_theta * a_theta - 1.0 + xp.cos(a_theta)) / theta4)
+        I = xp.eye(3, dtype=vec.dtype)
+        return 0.5 * a * a * I + A[..., None, None] * K + B[..., None, None] * K2
     
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -457,6 +381,8 @@ class SO3(LieAbstract):
         if isinstance(rval, SO3):
             return SO3(SO3.so3_mul(self._rot, rval._rot), self.lib)
         elif isinstance(rval, (np.ndarray, jnp.ndarray)):
+            if rval.shape[-1] == 3 and (rval.ndim == 1 or rval.shape[-2:] != (3, 3)):
+                return matvec(self._rot, rval)
             return SO3.so3_mul(self._rot, rval)
         else:
             raise TypeError("Right operand should be SO3, numpy.ndarray, or jax.ndarray")
@@ -485,15 +411,15 @@ class SO3wrench(SO3):
         return SO3.hat(vec, LIB)
 
     def inv(self) -> 'SO3wrench':
-        return SO3wrench(self._rot.transpose(), self.lib)
+        return SO3wrench(transpose_last(self._rot), self.lib)
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return SO3.exp(vec, a, LIB).transpose()
+        return transpose_last(SO3.exp(vec, a, LIB))
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return SO3.exp_integ(vec, a, LIB).transpose()
+        return transpose_last(SO3.exp_integ(vec, a, LIB))
     
 class SO3inertia(SO3):
     @staticmethod
@@ -532,8 +458,8 @@ class SO3inertia(SO3):
     
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return SO3.exp(vec, a, LIB).transpose()
+        return transpose_last(SO3.exp(vec, a, LIB))
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return SO3.exp_integ(vec, a, LIB).transpose()
+        return transpose_last(SO3.exp_integ(vec, a, LIB))
