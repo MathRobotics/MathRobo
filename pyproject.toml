@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mathrobo"
-version = "0.0.1"
+version = "0.0.2"
 authors = [  
   { name="taiki-ishigaki", email="taiki000ishigaki@gmail.com" },
 ]
@@ -31,3 +31,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/MathRobotics/MathRobo"
+
+[dependency-groups]
+dev = [
+    "build>=1.4.0",
+    "twine>=6.2.0",
+]

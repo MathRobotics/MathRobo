@@ -166,7 +166,6 @@ class SE3(LieAbstract):
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
-        xp = array_lib(LIB)
         w, v = vec[..., 0:3], vec[..., 3:6]
         if LIB == "jax":
             mat = jnp.zeros(vec.shape[:-1] + (4, 4), dtype=vec.dtype)
