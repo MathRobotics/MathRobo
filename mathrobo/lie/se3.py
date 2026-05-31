@@ -187,14 +187,16 @@ class SE3(LieAbstract):
         hat commute operator on the tanget space vector
         hat(a) @ b = hat_commute(b) @ a 
         '''
+        if vec.shape[-1] < 3:
+            raise ValueError("Input vector must have at least 3 elements.")
+        w = vec[..., 0:3]
         if LIB == 'jax':
-            return -jnp.concatenate((
-                jnp.concatenate((SO3.hat(vec[0:3], LIB), jnp.zeros((3, 3), dtype=vec.dtype)), axis=1),
-                jnp.zeros((1, 6), dtype=vec.dtype)
-            ), axis=0)
+            mat = jnp.zeros(vec.shape[:-1] + (4, 6), dtype=vec.dtype)
+            mat = mat.at[..., 0:3, 0:3].set(SO3.hat(w, LIB))
+            return -mat
         elif LIB == 'numpy':
-            mat = np.zeros((4,6))
-            mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+            mat = np.zeros(vec.shape[:-1] + (4, 6), dtype=vec.dtype)
+            mat[..., 0:3, 0:3] = SO3.hat(w, LIB)
             return -mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
@@ -656,14 +658,16 @@ class SE3wrench(SE3):
         hat commute operator on the tanget space vector
         hat(a) @ b = hat_commute(b) @ a 
         '''
+        if vec.shape[-1] < 3:
+            raise ValueError("Input vector must have at least 3 elements.")
+        w = vec[..., 0:3]
         if LIB == 'jax':
-            return -jnp.concatenate((
-                jnp.concatenate((SO3.hat(vec[0:3], LIB), jnp.zeros((3, 3), dtype=vec.dtype)), axis=1),
-                jnp.zeros((1, 6), dtype=vec.dtype)
-            ), axis=0)
+            mat = jnp.zeros(vec.shape[:-1] + (4, 6), dtype=vec.dtype)
+            mat = mat.at[..., 0:3, 0:3].set(SO3.hat(w, LIB))
+            return -mat
         elif LIB == 'numpy':
-            mat = np.zeros((4,6))
-            mat[0:3,0:3] = SO3.hat(vec[0:3], LIB)
+            mat = np.zeros(vec.shape[:-1] + (4, 6), dtype=vec.dtype)
+            mat[..., 0:3, 0:3] = SO3.hat(w, LIB)
             return -mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")

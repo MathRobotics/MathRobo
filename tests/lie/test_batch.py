@@ -88,6 +88,88 @@ def test_cmtm_se3_batch_mat_adj_inv_and_mul():
     )
 
 
+def test_cmtm_se3_batch_sub_and_variation():
+    batch = 2
+    order = 3
+    left = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(batch, 6), 0.2)),
+        np.random.rand(batch, order - 1, 6),
+    )
+    right = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(batch, 6), 0.3)),
+        np.random.rand(batch, order - 1, 6),
+    )
+
+    np.testing.assert_allclose(
+        mr.CMTM.sub_vec(left, right),
+        np.stack([
+            mr.CMTM.sub_vec(
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(left.elem_mat()[i]), left.vecs()[i]),
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(right.elem_mat()[i]), right.vecs()[i]),
+            )
+            for i in range(batch)
+        ]),
+    )
+    np.testing.assert_allclose(
+        mr.CMTM.sub_tan_vec(left, right),
+        np.stack([
+            mr.CMTM.sub_tan_vec(
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(left.elem_mat()[i]), left.vecs()[i]),
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(right.elem_mat()[i]), right.vecs()[i]),
+            )
+            for i in range(batch)
+        ]),
+    )
+    np.testing.assert_allclose(
+        mr.CMTM.sub_tan_vec(left, right, "fframe"),
+        np.stack([
+            mr.CMTM.sub_tan_vec(
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(left.elem_mat()[i]), left.vecs()[i]),
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(right.elem_mat()[i]), right.vecs()[i]),
+                "fframe",
+            )
+            for i in range(batch)
+        ]),
+    )
+
+    arb_vec = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
+    tan_var_vec = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
+    for frame in ["bframe", "fframe"]:
+        np.testing.assert_allclose(
+            left.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame).cm_vec(),
+            np.stack([
+                mr.CMTM[mr.SE3](mr.SE3.set_mat(left.elem_mat()[i]), left.vecs()[i])
+                .mat_var_x_arb_vec(
+                    mr.cmvec.CMVector(arb_vec.vecs()[i]),
+                    mr.cmvec.CMVector(tan_var_vec.vecs()[i]),
+                    frame,
+                )
+                .cm_vec()
+                for i in range(batch)
+            ]),
+            rtol=1e-14,
+            atol=1e-14,
+        )
+
+
+def test_se3_batch_hat_commute():
+    vec1 = np.random.rand(3, 6)
+    vec2 = np.concatenate([np.random.rand(3, 3), np.zeros((3, 1))], axis=-1)
+
+    np.testing.assert_allclose(
+        mr.SE3.hat(vec1) @ vec2[..., None],
+        mr.SE3.hat_commute(vec2) @ vec1[..., None],
+    )
+    np.testing.assert_allclose(
+        mr.SE3.hat_commute(vec2),
+        np.stack([mr.SE3.hat_commute(vec2[i]) for i in range(vec2.shape[0])]),
+    )
+    np.testing.assert_allclose(
+        mr.SE3wrench.hat_commute(vec2),
+        np.stack([mr.SE3wrench.hat_commute(vec2[i]) for i in range(vec2.shape[0])]),
+    )
+
+
 def test_cmvector_batch():
     vecs = np.random.rand(5, 3, 6)
     cm = mr.cmvec.CMVector(vecs)

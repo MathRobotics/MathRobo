@@ -450,11 +450,12 @@ class CMTM(Generic[T]):
             raise TypeError("Left operand should be same dof in right operand")
 
         dof = lval._mat._dof
-        vec = np.zeros((lval._n * dof))
-        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
+        batch_shape = np.broadcast_shapes(lval._vecs.shape[:-2], rval._vecs.shape[:-2])
+        vec = np.zeros(batch_shape + (lval._n * dof,), dtype=np.result_type(lval._vecs, rval._vecs))
+        vec[..., :dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
 
         for i in range(1,lval._n):
-            vec[dof*i:dof*(i+1)] = rval._vecs[i-1] - lval._vecs[i-1]
+            vec[..., dof*i:dof*(i+1)] = rval._vecs[..., i-1, :] - lval._vecs[..., i-1, :]
 
         return vec
 
@@ -473,7 +474,7 @@ class CMTM(Generic[T]):
         elif frame == 'fframe':
             vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
         
-        return vec.flatten()
+        return flatten_last2(vec)
 
     def __matmul__(self, rval):
         if isinstance(rval, CMTM):
@@ -534,9 +535,11 @@ class CMTM(Generic[T]):
         cls = type(self)
         cls_elem = type(self._mat) 
         if frame == 'bframe':
-            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+            res = matvec(self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec), tan_var_vec.cm_vec())
+            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
         elif frame == 'fframe':
-            return cmvec.CMVector.set_cmvecs((cls.hat_cm_commute_adj(cls_elem, self @ arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+            res = matvec(cls.hat_cm_commute_adj(cls_elem, self @ arb_vec), tan_var_vec.cm_vec())
+            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
 
     def mat_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
                            frame : str = 'bframe') -> cmvec.CMVector:
