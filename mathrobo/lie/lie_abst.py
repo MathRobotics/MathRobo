@@ -3,7 +3,8 @@
 from typing import Union
 from abc import ABC, abstractmethod
 
-from ..basic import *
+import numpy as np
+import jax.numpy as jnp
 
 class LieAbstract(ABC):
     @abstractmethod

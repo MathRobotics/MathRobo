@@ -4,6 +4,8 @@ from typing import Union
 import numpy as np
 import jax.numpy as jnp
 
+from .._batch import flatten_last2
+
 class Factorial:
     @staticmethod
     def _factorial_scales(
@@ -61,60 +63,83 @@ class FactorialVector:
         return np.result_type(vecs.dtype, np.float64)
 
     def __init__(self, vecs : Union[np.ndarray, jnp.ndarray]):
-        self._n = vecs.shape[0]
-        self._dim = vecs.shape[1] if len(vecs.shape) > 1 else 1
-        self._len = vecs.flatten().shape[0]
+        if vecs.ndim == 1:
+            vecs = vecs[..., None]
+            self._squeeze_vec = True
+        else:
+            self._squeeze_vec = False
+
+        self._n = vecs.shape[-2]
+        self._dim = vecs.shape[-1]
+        self._len = self._n * self._dim
         self._vecs = vecs
         self._lib = self._detect_lib(vecs)
 
         dtype = self._scale_dtype(vecs, self._lib)
         self._factorial_scales = Factorial._factorial_scales(self._n, LIB=self._lib, dtype=dtype)
         self._inverse_factorial_scales = 1.0 / self._factorial_scales
-
-        vecs_2d = vecs.reshape(self._n, self._dim)
-        self._factorial_vecs = vecs_2d * self._factorial_scales.reshape(self._n, 1)
-        self._inverse_factorial_vecs = vecs_2d * self._inverse_factorial_scales.reshape(self._n, 1)
+        scale_shape = (1,) * (vecs.ndim - 2) + (self._n, 1)
+        self._factorial_vecs = vecs * self._factorial_scales.reshape(scale_shape)
+        self._inverse_factorial_vecs = vecs * self._inverse_factorial_scales.reshape(scale_shape)
 
         self._factorial_mat = None
         self._inverse_factorial_mat = None
 
     @staticmethod
     def set_fac_vecs(fac_vecs : Union[np.ndarray, jnp.ndarray]) -> 'FactorialVector':
-        n = fac_vecs.shape[0]
-        dim = fac_vecs.shape[1] if len(fac_vecs.shape) > 1 else 1
+        if fac_vecs.ndim == 1:
+            fac_vecs = fac_vecs[..., None]
         lib = FactorialVector._detect_lib(fac_vecs)
         dtype = FactorialVector._scale_dtype(fac_vecs, lib)
+        n = fac_vecs.shape[-2]
         inv_scales = 1.0 / Factorial._factorial_scales(n, LIB=lib, dtype=dtype)
-        vecs = fac_vecs.reshape(n, dim) * inv_scales.reshape(n, 1)
-        return FactorialVector(vecs)
+        vecs = fac_vecs * inv_scales.reshape((1,) * (fac_vecs.ndim - 2) + (n, 1))
+        factorial_vec = FactorialVector(vecs)
+        factorial_vec._factorial_vecs = fac_vecs
+        return factorial_vec
     
     @staticmethod
     def set_ifac_vecs(ifac_vecs : Union[np.ndarray, jnp.ndarray]) -> 'FactorialVector':
-        n = ifac_vecs.shape[0]
-        dim = ifac_vecs.shape[1] if len(ifac_vecs.shape) > 1 else 1
+        if ifac_vecs.ndim == 1:
+            ifac_vecs = ifac_vecs[..., None]
         lib = FactorialVector._detect_lib(ifac_vecs)
         dtype = FactorialVector._scale_dtype(ifac_vecs, lib)
+        n = ifac_vecs.shape[-2]
         scales = Factorial._factorial_scales(n, LIB=lib, dtype=dtype)
-        vecs = ifac_vecs.reshape(n, dim) * scales.reshape(n, 1)
-        return FactorialVector(vecs)
+        vecs = ifac_vecs * scales.reshape((1,) * (ifac_vecs.ndim - 2) + (n, 1))
+        factorial_vec = FactorialVector(vecs)
+        factorial_vec._inverse_factorial_vecs = ifac_vecs
+        return factorial_vec
 
     def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
+        if self._squeeze_vec:
+            return self._vecs[..., 0]
         return self._vecs
 
     def fac_vecs(self) -> Union[np.ndarray, jnp.ndarray]:
+        if self._squeeze_vec:
+            return self._factorial_vecs[..., 0]
         return self._factorial_vecs
     
     def ifac_vecs(self) -> Union[np.ndarray, jnp.ndarray]:
+        if self._squeeze_vec:
+            return self._inverse_factorial_vecs[..., 0]
         return self._inverse_factorial_vecs
 
     def vec(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._vecs.flatten()
+        if self._squeeze_vec and self._vecs.ndim == 2:
+            return self._vecs[..., 0]
+        return flatten_last2(self._vecs)
 
     def fac_vec(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._factorial_vecs.flatten()
+        if self._squeeze_vec and self._factorial_vecs.ndim == 2:
+            return self._factorial_vecs[..., 0]
+        return flatten_last2(self._factorial_vecs)
     
     def ifac_vec(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._inverse_factorial_vecs.flatten()
+        if self._squeeze_vec and self._inverse_factorial_vecs.ndim == 2:
+            return self._inverse_factorial_vecs[..., 0]
+        return flatten_last2(self._inverse_factorial_vecs)
     
     def fac_mat(self) -> Union[np.ndarray, jnp.ndarray]:
         if self._factorial_mat is None:

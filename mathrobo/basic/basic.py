@@ -3,13 +3,12 @@
 # 2024.06.23 Created by T.Ishigaki
 
 import numpy as np
-import sympy as sp
 import jax.numpy as jnp
 
 import math
 
 def lib_error_message():
-    ValueError("Unsupported library. Choose 'numpy', 'sympy' or 'jax'.")
+    return ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
 def iszero(x):
     tolerance = 1e-8  # 許容範囲
@@ -18,8 +17,6 @@ def iszero(x):
 def sin(theta, LIB = 'numpy'):
     if LIB == 'numpy':
         return np.sin(theta)
-    elif LIB == 'sympy':
-        return sp.sin(theta)
     elif LIB == 'jax':
         return jnp.sin(theta)
     else:
@@ -28,8 +25,6 @@ def sin(theta, LIB = 'numpy'):
 def cos(theta, LIB = 'numpy'):
     if LIB == 'numpy':
         return np.cos(theta)
-    elif LIB == 'sympy':
-        return sp.cos(theta)
     elif LIB == 'jax':
         return jnp.cos(theta)
     else:
@@ -38,11 +33,6 @@ def cos(theta, LIB = 'numpy'):
 def zeros(shape, LIB = 'numpy'):
     if LIB == 'numpy':
         return np.zeros(shape)
-    elif LIB == 'sympy':
-        if type(shape) == int:
-            return sp.zeros(shape,1)
-        elif type(shape) == tuple and len(shape) == 2:
-            return sp.zeros(shape[0],shape[1])
     elif LIB == 'jax':
         return jnp.zeros(shape)
     else:
@@ -51,11 +41,6 @@ def zeros(shape, LIB = 'numpy'):
 def identity(size, LIB = 'numpy'):
     if LIB == 'numpy':
         return np.identity(size)
-    elif LIB == 'sympy':
-        m = sp.zeros(size,size)
-        for i in range(size):
-            m[i,i] = 1
-        return m
     elif LIB == 'jax':
         return jnp.identity(size)
     else:
@@ -64,8 +49,6 @@ def identity(size, LIB = 'numpy'):
 def norm(vec, LIB = 'numpy'):
         if LIB == 'numpy':
             return np.linalg.norm(vec)
-        elif LIB == 'sympy':
-            return sp.sqrt(vec.dot(vec))
         elif LIB == 'jax':
             return jnp.linalg.norm(vec)
         else:
@@ -74,8 +57,6 @@ def norm(vec, LIB = 'numpy'):
 def isclose(a, b, LIB = 'numpy'):
         if LIB == 'numpy':
                 return np.isclose(a, b)
-        elif LIB == 'sympy':
-                return sp.simplify(a - b) == 0
         elif LIB == 'jax':
                 return jnp.isclose(a, b)
         else:
@@ -122,12 +103,3 @@ def jac_lie_v_wrt_vector(lie, vec, a, v, LIB = 'numpy'):
     integ_m = -lie.exp_integ_adj(vec, -a, LIB)
 
     return m @ lie.hat_commute_adj(v, LIB) @ integ_m
-
-def sympy_to_numpy(sp_mat):
-    return np.array(sp_mat).astype(np.float64)
-
-def sympy_subs_mat(m, vec_str, vec_val):
-    for i in range(len(vec_str)):
-        m = m.subs([(vec_str[i], vec_val[i])])
-
-    return m

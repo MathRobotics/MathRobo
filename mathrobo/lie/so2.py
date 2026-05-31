@@ -1,5 +1,10 @@
-from ..basic import *
-from .lie_abst import *
+from typing import Union
+
+import numpy as np
+import jax.numpy as jnp
+
+from ..basic import identity
+from .lie_abst import LieAbstract
 
 class SO2(LieAbstract):
     _dof = 2
@@ -92,7 +97,7 @@ class SO2(LieAbstract):
     def __matmul__(self, rval):
         if isinstance(rval, SO2):
             return SO2(self._rot @ rval._rot)
-        elif isinstance(rval, np.ndarray):
+        elif isinstance(rval, (np.ndarray, jnp.ndarray)):
             return self._rot @ rval
         else:
-            TypeError("Right operand should be SO2 or numpy.ndarray")
+            raise TypeError("Right operand should be SO2, numpy.ndarray, or jax.ndarray")

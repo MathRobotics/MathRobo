@@ -1,25 +1,37 @@
 # Mathrobo
 
-Mathrobo is a lightweight library designed to support mathematical optimization and computations related to robotics.
+Mathrobo is a Python library for robotics-oriented mathematical computation, including Lie group operations, spatial transformations, numerical differentiation/integration, and B-spline utilities.
 
 ## Installation
 
-### Clone the repository
+Install the latest release from PyPI:
+
+```bash
+pip install mathrobo
+```
+
+If you use uv, you can add Mathrobo to your project with:
+
+```bash
+uv add mathrobo
+```
+
+### Development install
+
+For local development, clone the repository:
 
 ```bash
 git clone https://github.com/MathRobotics/MathRobo.git
 cd MathRobo
 ```
 
-### Install dependencies with uv
-
-Sync the environment from `pyproject.toml` and `uv.lock`:
+Sync the development environment from `pyproject.toml` and `uv.lock`:
 
 ```bash
-uv sync
+uv sync --extra dev
 ```
 
-### Install the package in editable mode
+Install the package in editable mode:
 
 ```bash
 uv pip install -e .
@@ -95,8 +107,12 @@ print(ys)
 Run the test suite with uv:
 
 ```bash
-uv run pytest
+uv run --extra dev pytest
 ```
+
+## Changelog
+
+- Removed SymPy as a runtime dependency. Mathrobo now supports the NumPy and JAX code paths only, and `uv.lock` no longer includes SymPy or mpmath.
 
 ## Contributing
 

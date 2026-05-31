@@ -2,9 +2,6 @@ import jax.numpy as jnp
 from jax import jacrev
 import numpy as np
 
-from scipy.linalg import expm
-from scipy import integrate
-
 import mathrobo as mr
 
 def test_so3_grad():

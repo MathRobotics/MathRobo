@@ -1,7 +1,6 @@
 import numpy as np
 
 import mathrobo as mr
-from mathrobo.basic import basic
 
 test_order = 10
 

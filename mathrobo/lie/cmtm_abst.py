@@ -1,10 +1,11 @@
-from typing import TypeVar, Generic, Union
+from typing import TypeVar, Generic
 import numpy as np
 import jax.numpy as jnp
 import math
 import jax
 
 from ..basic import cm_vec as cmvec
+from .._batch import flatten_last2, matvec
 
 T = TypeVar('T')
 
@@ -14,7 +15,9 @@ class CMTM(Generic[T]):
         Constructor
         '''
         if elem_vecs is None:
-            elem_vecs = np.array([])
+            elem_vecs = np.zeros(elem_mat.mat().shape[:-2] + (0, elem_mat.dof()))
+        elif elem_vecs.ndim == 1 and elem_vecs.size == 0:
+            elem_vecs = np.zeros(elem_mat.mat().shape[:-2] + (0, elem_mat.dof()))
         self._mat = elem_mat
         self._vecs = elem_vecs
         self._cmvecs = None
@@ -38,13 +41,13 @@ class CMTM(Generic[T]):
         self._mat_adj_size = _static_int('mat_adj_size')
 
         if self._mat_size is None:
-            self._mat_size = elem_mat.mat().shape[0]
+            self._mat_size = elem_mat.mat().shape[-1]
         if self._mat_adj_size is None:
-            self._mat_adj_size = elem_mat.mat_adj().shape[0]
+            self._mat_adj_size = elem_mat.mat_adj().shape[-1]
         if self._dof is None:
             self._dof = self._mat_adj_size
 
-        self._n = elem_vecs.shape[0] + 1
+        self._n = elem_vecs.shape[-2] + 1
         self._size = self._mat_size * self._n
         self._adj_size = self._mat_adj_size * self._n
         self._lib = LIB
@@ -133,9 +136,9 @@ class CMTM(Generic[T]):
             if p == 0:
                 return self._mat.mat()
             else:
-                mat = np.zeros( (self._mat_size, self._mat_size) ) 
+                mat = np.zeros(self._mat.mat().shape[:-2] + (self._mat_size, self._mat_size), dtype=self._mat.mat().dtype) 
                 for i in range(p):
-                    mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._cmvecs_obj().cm_vecs()[i])
+                    mat = mat + self.__mat_elem(p-(i+1)) @ self._mat.hat(self._cmvecs_obj().cm_vecs()[..., i, :])
 
                 return mat / p
 
@@ -509,51 +512,84 @@ class CMTM(Generic[T]):
             return big_mat  
         elif self._lib == 'numpy':
             output_order = self.__check_output_order(output_order)
-            cached = self._mat_matrix_cache_numpy.get(output_order)
-            if cached is not None:
-                return cached.copy()
-            tmp = self._mat_blocks_numpy(output_order)
-            mat = self._lower_toeplitz_numpy(tmp)
-            self._mat_matrix_cache_numpy[output_order] = mat.copy()
+            batch_shape = self._mat.mat().shape[:-2]
+            if len(batch_shape) == 0:
+                cached = self._mat_matrix_cache_numpy.get(output_order)
+                if cached is not None:
+                    return cached.copy()
+                tmp = self._mat_blocks_numpy(output_order)
+                mat = self._lower_toeplitz_numpy(tmp)
+                self._mat_matrix_cache_numpy[output_order] = mat.copy()
+            else:
+                mat = np.zeros(batch_shape + (self._mat_size * output_order, self._mat_size * output_order), dtype=self._mat.mat().dtype)
+                tmp = np.zeros(batch_shape + (output_order, self._mat_size, self._mat_size), dtype=self._mat.mat().dtype)
+                for i in range(output_order):
+                    tmp[..., i, :, :] = self.__mat_elem(i)
+                for i in range(output_order):
+                    for j in range(i, output_order):
+                        mat[..., self._mat_size*j:self._mat_size*(j+1), self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[..., i, :, :]
             return mat
     
     def __mat_adj_elem(self, p : int):
         if p == 0:
             return self._mat.mat_adj()
         else:
-            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros(self._mat.mat_adj().shape[:-2] + (self._mat_adj_size, self._mat_adj_size), dtype=self._mat.mat_adj().dtype) 
             for i in range(p):
-                mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[i])
+                mat = mat + self.__mat_adj_elem(p-(i+1)) @ self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[..., i, :])
 
             return mat / p
         
     def mat_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        cached = self._mat_adj_matrix_cache_numpy.get(output_order)
-        if cached is not None:
-            return cached.copy()
-        tmp = self._mat_adj_blocks_numpy(output_order)
-        mat = self._lower_toeplitz_numpy(tmp)
-        self._mat_adj_matrix_cache_numpy[output_order] = mat.copy()
+        batch_shape = self._mat.mat_adj().shape[:-2]
+        if len(batch_shape) == 0:
+            cached = self._mat_adj_matrix_cache_numpy.get(output_order)
+            if cached is not None:
+                return cached.copy()
+            tmp = self._mat_adj_blocks_numpy(output_order)
+            mat = self._lower_toeplitz_numpy(tmp)
+            self._mat_adj_matrix_cache_numpy[output_order] = mat.copy()
+        else:
+            mat = np.zeros(batch_shape + (self._mat_adj_size * output_order, self._mat_adj_size * output_order), dtype=self._mat.mat_adj().dtype)
+            tmp = np.zeros(batch_shape + (output_order, self._mat_adj_size, self._mat_adj_size), dtype=self._mat.mat_adj().dtype)
+            for i in range(output_order):
+                tmp[..., i, :, :] = self.__mat_adj_elem(i)
+            for i in range(output_order):
+                for j in range(i, output_order):
+                    mat[..., self._mat_adj_size*j:self._mat_adj_size*(j+1), self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[..., i, :, :]
         return mat
 
     @staticmethod
     def set_mat(T, mat : np.ndarray, LIB = 'numpy'):
-        size = T.eye().mat().shape[0]
-        if mat.shape[0] % size != 0:
+        size = T.eye().mat().shape[-1]
+        if mat.shape[-1] % size != 0:
             raise TypeError("Matrix size is not same as element matrix")
         if size == 0:
             raise TypeError("Element matrix size is zero")
      
-        n = int(mat.shape[0] / size)
+        n = int(mat.shape[-1] / size)
+        batch_shape = mat.shape[:-2]
 
-        tmp = np.zeros((n, size, size), dtype=mat.dtype)
+        tmp = np.zeros(batch_shape + (n, size, size), dtype=mat.dtype)
         for i in range(n):
             for j in range(n-i):
-                tmp[i] += mat[(j+i)*size:(j+i+1)*size, j*size:(j+1)*size]
-            tmp[i] = tmp[i] / (n-i)
+                tmp[..., i, :, :] += mat[..., (j+i)*size:(j+i+1)*size, j*size:(j+1)*size]
+            tmp[..., i, :, :] = tmp[..., i, :, :] / (n-i)
 
-        return CMTM._set_from_mat_blocks(T, tmp, LIB=LIB)
+        if len(batch_shape) == 0:
+            return CMTM._set_from_mat_blocks(T, tmp, LIB=LIB)
+
+        m = T.set_mat(tmp[..., 0, :, :], LIB=LIB)
+        vs = np.zeros(batch_shape + (n-1, T.dof()), dtype=mat.dtype)
+
+        for i in range(n-1):
+            m_tmp = np.zeros(batch_shape + (size, size), dtype=mat.dtype)
+            for j in range(i):
+                m_tmp += tmp[..., i-j, :, :] @ T.hat(vs[..., j, :]/math.factorial(j), LIB=LIB)
+            vs[..., i, :] = T.vee(m.inv() @  ( tmp[..., i+1, :, :] * (i+1) - m_tmp), LIB=LIB) * math.factorial(i)
+
+        return CMTM(m, vs, LIB=LIB)
     
     @staticmethod
     def eye(T, output_order = 3):
@@ -568,21 +604,18 @@ class CMTM(Generic[T]):
     
     def elem_vecs(self, i):
         if(self._n - 1 > i ):
-            if(self._vecs.ndim == 1):
-                return self._vecs
-            else:
-                return self._vecs[i]
+            return self._vecs[..., i, :]
             
     def vecs(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        return self._vecs[:output_order-1]
+        return self._vecs[..., :output_order-1, :]
     
     def cmvecs(self):
         return self._cmvecs_obj()
     
     def vecs_flatten(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        return self._vecs[:output_order-1].flatten()
+        return flatten_last2(self._vecs[..., :output_order-1, :])
     
     def inv(self) -> 'CMTM':
         if self._n < 0 :
@@ -596,51 +629,72 @@ class CMTM(Generic[T]):
         if p == 0:
             return self._mat.mat_inv()
         else:
-            mat = np.zeros( (self._mat_size, self._mat_size) ) 
+            mat = np.zeros(self._mat.mat_inv().shape[:-2] + (self._mat_size, self._mat_size), dtype=self._mat.mat_inv().dtype) 
             for i in range(p):
-                mat = mat - self._mat.hat(self._cmvecs_obj().cm_vecs()[i]) @ self.__mat_inv_elem(p-(i+1))
+                mat = mat - self._mat.hat(self._cmvecs_obj().cm_vecs()[..., i, :]) @ self.__mat_inv_elem(p-(i+1))
                 
             return mat / p
     
     def mat_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        cached = self._mat_inv_matrix_cache_numpy.get(output_order)
-        if cached is not None:
-            return cached.copy()
-        tmp = self._mat_inv_blocks_numpy(output_order)
-        mat = self._lower_toeplitz_numpy(tmp)
-        self._mat_inv_matrix_cache_numpy[output_order] = mat.copy()
+        batch_shape = self._mat.mat_inv().shape[:-2]
+        if len(batch_shape) == 0:
+            cached = self._mat_inv_matrix_cache_numpy.get(output_order)
+            if cached is not None:
+                return cached.copy()
+            tmp = self._mat_inv_blocks_numpy(output_order)
+            mat = self._lower_toeplitz_numpy(tmp)
+            self._mat_inv_matrix_cache_numpy[output_order] = mat.copy()
+        else:
+            mat = np.zeros(batch_shape + (self._mat_size * output_order, self._mat_size * output_order), dtype=self._mat.mat_inv().dtype)
+            tmp = np.zeros(batch_shape + (output_order, self._mat_size, self._mat_size), dtype=self._mat.mat_inv().dtype)
+            for i in range(output_order):
+                tmp[..., i, :, :] = self.__mat_inv_elem(i)
+            for i in range(output_order):
+                for j in range(i, output_order):
+                    mat[..., self._mat_size*j:self._mat_size*(j+1), self._mat_size*(j-i):self._mat_size*(j-i+1)] = tmp[..., i, :, :]
         return mat
     
     def __mat_inv_adj_elem(self, p : int):
         if p == 0:
             return self._mat.mat_inv_adj()
         else:
-            mat = np.zeros( (self._mat_adj_size, self._mat_adj_size) ) 
+            mat = np.zeros(self._mat.mat_inv_adj().shape[:-2] + (self._mat_adj_size, self._mat_adj_size), dtype=self._mat.mat_inv_adj().dtype) 
             for i in range(p):
-                mat = mat - self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[i]) @ self.__mat_inv_adj_elem(p-(i+1))
+                mat = mat - self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[..., i, :]) @ self.__mat_inv_adj_elem(p-(i+1))
                 
             return mat / p
     
     def mat_inv_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
-        cached = self._mat_inv_adj_matrix_cache_numpy.get(output_order)
-        if cached is not None:
-            return cached.copy()
-        tmp = self._mat_inv_adj_blocks_numpy(output_order)
-        mat = self._lower_toeplitz_numpy(tmp)
-        self._mat_inv_adj_matrix_cache_numpy[output_order] = mat.copy()
+        batch_shape = self._mat.mat_inv_adj().shape[:-2]
+        if len(batch_shape) == 0:
+            cached = self._mat_inv_adj_matrix_cache_numpy.get(output_order)
+            if cached is not None:
+                return cached.copy()
+            tmp = self._mat_inv_adj_blocks_numpy(output_order)
+            mat = self._lower_toeplitz_numpy(tmp)
+            self._mat_inv_adj_matrix_cache_numpy[output_order] = mat.copy()
+        else:
+            mat = np.zeros(batch_shape + (self._mat_adj_size * output_order, self._mat_adj_size * output_order), dtype=self._mat.mat_inv_adj().dtype)
+            tmp = np.zeros(batch_shape + (output_order, self._mat_adj_size, self._mat_adj_size), dtype=self._mat.mat_inv_adj().dtype)
+            for i in range(output_order):
+                tmp[..., i, :, :] = self.__mat_inv_adj_elem(i)
+            for i in range(output_order):
+                for j in range(i, output_order):
+                    mat[..., self._mat_adj_size*j:self._mat_adj_size*(j+1), self._mat_adj_size*(j-i):self._mat_adj_size*(j-i+1)] = tmp[..., i, :, :]
         return mat
     
     @staticmethod
     def __hat_func(hat, vecs):
-        n = vecs.shape[0]
-        m = hat(vecs[0]).shape[0]
-        mat = np.zeros((m*n,m*n))
+        n = vecs.shape[-2]
+        first = hat(vecs[..., 0, :])
+        m = first.shape[-1]
+        mat = np.zeros(vecs.shape[:-2] + (m*n,m*n), dtype=vecs.dtype)
         for i in range(n):
-            tmp = hat(vecs[i])
+            tmp = first if i == 0 else hat(vecs[..., i, :])
             for j in range(n-i):
-                mat[m*i+m*j:m*(i+1)+m*j,m*j:m*(j+1)] = tmp
+                mat[..., m*i+m*j:m*(i+1)+m*j, m*j:m*(j+1)] = tmp
         return mat
     
     @staticmethod
@@ -655,11 +709,13 @@ class CMTM(Generic[T]):
     def __hat_cm_func(hat, vecs : cmvec.CMVector):
         n = vecs._n
         m = vecs._dim
-        mat = np.zeros((m*n,m*n))
+        cm_vecs = vecs.cm_vecs()
+        dtype = np.result_type(cm_vecs.dtype, np.longdouble)
+        mat = np.zeros(cm_vecs.shape[:-2] + (m*n,m*n), dtype=dtype)
         for i in range(n):
-            tmp = hat(vecs.cm_vecs()[i])
+            tmp = hat(cm_vecs[..., i, :]).astype(dtype, copy=False)
             for j in range(n-i):
-                mat[m*i+m*j:m*(i+1)+m*j,m*j:m*(j+1)] = tmp
+                mat[..., m*i+m*j:m*(i+1)+m*j, m*j:m*(j+1)] = tmp
         return mat
     
     @staticmethod
@@ -680,13 +736,13 @@ class CMTM(Generic[T]):
         if size == 0:
             raise TypeError("Element matrix size is zero")
         n = dof
-        m = int(mat.shape[0] / size)
-        vecs = np.zeros((m,n))
+        m = int(mat.shape[-1] / size)
+        vecs = np.zeros(mat.shape[:-2] + (m,n), dtype=mat.dtype)
         for i in range(m):
-            tmp = np.zeros(n)
+            tmp = np.zeros(mat.shape[:-2] + (n,), dtype=mat.dtype)
             for j in range(i,m):
-                tmp += vee( mat[j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
-            vecs[i] = tmp / (m-i)
+                tmp += vee( mat[..., j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
+            vecs[..., i, :] = tmp / (m-i)
         return vecs
 
     @staticmethod
@@ -707,13 +763,13 @@ class CMTM(Generic[T]):
         if size == 0:
             raise TypeError("Element matrix size is zero")
         n = dof
-        m = int(mat.shape[0] / size)
-        vecs = np.zeros((m,n))
+        m = int(mat.shape[-1] / size)
+        vecs = np.zeros(mat.shape[:-2] + (m,n), dtype=mat.dtype)
         for i in range(m):
-            tmp = np.zeros(n)
+            tmp = np.zeros(mat.shape[:-2] + (n,), dtype=mat.dtype)
             for j in range(i,m):
-                tmp += vee( mat[j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
-            vecs[i] = tmp / (m-i) * math.factorial(i)
+                tmp += vee( mat[..., j*size:(j+1)*size, (j-i)*size:(j-i+1)*size] )
+            vecs[..., i, :] = tmp / (m-i) * math.factorial(i)
         return cmvec.CMVector(vecs)
 
     @staticmethod
@@ -779,7 +835,7 @@ class CMTM(Generic[T]):
             return np.eye( self._mat_adj_size ) / i
         else:
             for k in range(j,i):
-                mat = mat - self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[i-1-k]) @ self.__tangent_mat_elem(k, j) 
+                mat = mat - self._mat.hat_adj(self._cmvecs_obj().cm_vecs()[i-1-k]) @ self.__tangent_mat_elem(k, j)
             return mat / i
 
     def tangent_mat_cm(self, output_order = None):
@@ -812,11 +868,12 @@ class CMTM(Generic[T]):
             raise TypeError("Left operand should be same dof in right operand")
 
         dof = lval._mat._dof
-        vec = np.zeros((lval._n * dof))
-        vec[:dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
+        batch_shape = np.broadcast_shapes(lval._vecs.shape[:-2], rval._vecs.shape[:-2])
+        vec = np.zeros(batch_shape + (lval._n * dof,), dtype=np.result_type(lval._vecs, rval._vecs))
+        vec[..., :dof] = lval._mat.sub_tan_vec(lval._mat, rval._mat, frame)
 
         for i in range(1,lval._n):
-            vec[dof*i:dof*(i+1)] = rval._vecs[i-1] - lval._vecs[i-1]
+            vec[..., dof*i:dof*(i+1)] = rval._vecs[..., i-1, :] - lval._vecs[..., i-1, :]
 
         return vec
 
@@ -835,7 +892,7 @@ class CMTM(Generic[T]):
         elif frame == 'fframe':
             vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
         
-        return vec.flatten()
+        return flatten_last2(vec)
 
     def __matmul__(self, rval):
         if isinstance(rval, CMTM):
@@ -858,26 +915,31 @@ class CMTM(Generic[T]):
                     # fallback for non-numpy backends
                     return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat(), LIB=self._lib)
                 m = self._mat @ rval._mat
-                v = np.zeros((self._n-1,self._mat.dof()))
+                batch_shape = np.broadcast_shapes(self._vecs.shape[:-2], rval._vecs.shape[:-2])
+                v = np.zeros(batch_shape + (self._n-1,self._mat.dof()), dtype=np.result_type(self._vecs, rval._vecs))
                 if self._n > 1:
-                    v[0] = rval._mat.mat_inv_adj() @ self._vecs[0] + rval._vecs[0]
+                    v[..., 0, :] = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 0, :]) + rval._vecs[..., 0, :]
                 if self._n > 2:
-                    v[1] = rval._mat.mat_inv_adj() @ self._vecs[1] + self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[0] + rval._vecs[1]
+                    rv0 = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 0, :])
+                    v[..., 1, :] = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 1, :]) + matvec(self._mat.hat_adj(rv0), rval._vecs[..., 0, :]) + rval._vecs[..., 1, :]
                 if self._n > 3:
                     # v[2] = rval._mat.mat_inv_adj() @ self._vecs[2] \
                     #         - 2 * self._mat.hat_adj(rval._vecs[0]) @ rval._mat.mat_inv_adj() @ self._vecs[1] \
                     #         + (- self._mat.hat_adj(rval._vecs[1]) + self._mat.hat_adj(rval._vecs[0]) @ self._mat.hat_adj(rval._vecs[0]) ) @ rval._mat.mat_inv_adj() @ self._vecs[0] \
                     #         + rval._vecs[2]
-                    v[2] = rval._mat.mat_inv_adj() @ self._vecs[2] \
-                            + 2 * self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[1]) @ rval._vecs[0] \
-                            + self._mat.hat_adj( self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[0]) @ rval._vecs[0] \
-                            + self._mat.hat_adj(rval._mat.mat_inv_adj() @ self._vecs[0]) @ rval._vecs[1] \
-                            + rval._vecs[2]
-                return CMTM(m, v)
+                    rv0 = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 0, :])
+                    rv1 = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 1, :])
+                    v[..., 2, :] = matvec(rval._mat.mat_inv_adj(), self._vecs[..., 2, :]) \
+                            + 2 * matvec(self._mat.hat_adj(rv1), rval._vecs[..., 0, :]) \
+                            + matvec(self._mat.hat_adj(matvec(self._mat.hat_adj(rv0), rval._vecs[..., 0, :])), rval._vecs[..., 0, :]) \
+                            + matvec(self._mat.hat_adj(rv0), rval._vecs[..., 1, :]) \
+                            + rval._vecs[..., 2, :]
+                return CMTM(m, v, LIB=self._lib)
             else:
                 raise TypeError("Right operand should be same size in left operand")
         elif isinstance(rval, cmvec.CMVector):
-            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ rval.cm_vec()).reshape(self._n, self._mat_adj_size))
+            res = matvec(self.mat_adj(), rval.cm_vec())
+            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
         elif isinstance(rval, np.ndarray):
             return self.mat() @ rval
         else:
@@ -905,9 +967,11 @@ class CMTM(Generic[T]):
         cls = type(self)
         cls_elem = type(self._mat) 
         if frame == 'bframe':
-            return cmvec.CMVector.set_cmvecs((self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+            res = matvec(self.mat_adj() @ cls.hat_cm_commute_adj(cls_elem, arb_vec), tan_var_vec.cm_vec())
+            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
         elif frame == 'fframe':
-            return cmvec.CMVector.set_cmvecs((cls.hat_cm_commute_adj(cls_elem, self @ arb_vec) @ tan_var_vec.cm_vec()).reshape(self._n, self._mat_adj_size))
+            res = matvec(cls.hat_cm_commute_adj(cls_elem, self @ arb_vec), tan_var_vec.cm_vec())
+            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
 
     def mat_var_x_arb_vec_jacob(self, arb_vec : cmvec.CMVector,
                            frame : str = 'bframe') -> cmvec.CMVector:
