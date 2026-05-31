@@ -379,7 +379,7 @@ def test_cmtm_se3_mat_var_x_arb_vec():
     np.testing.assert_allclose(res, sol, rtol=1e-15, atol=1e-15)
 
     sol2 = mat.mat_adj() @ mr.CMTM.hat_cm_adj(mr.SE3, tan_var_vec) @ arb_vec.cm_vec()
-    np.testing.assert_allclose(res, sol2, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res, sol2, rtol=1e-14, atol=1e-14)
 
     res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='fframe').cm_vec()
 

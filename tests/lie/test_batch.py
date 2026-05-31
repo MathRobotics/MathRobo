@@ -88,6 +88,67 @@ def test_cmtm_se3_batch_mat_adj_inv_and_mul():
     )
 
 
+def test_cmtm_se3_batch_order5_mul_inv_and_tangent():
+    batch = 2
+    order = 5
+    left = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(batch, 6), 0.2)),
+        np.random.rand(batch, order - 1, 6),
+    )
+    right = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(batch, 6), 0.3)),
+        np.random.rand(batch, order - 1, 6),
+    )
+
+    np.testing.assert_allclose(
+        (left @ right).mat(),
+        left.mat() @ right.mat(),
+        rtol=1e-10,
+        atol=1e-10,
+    )
+    unbatched_left = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(6), 0.2)),
+        np.random.rand(order - 1, 6),
+    )
+    np.testing.assert_allclose(
+        (unbatched_left @ right).mat(),
+        unbatched_left.mat() @ right.mat(),
+        rtol=1e-10,
+        atol=1e-10,
+    )
+
+    eye = np.broadcast_to(np.eye(left.size()), (batch, left.size(), left.size()))
+    np.testing.assert_allclose(left.mat() @ left.mat_inv(), eye, rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(left.mat() @ left.inv().mat(), eye, rtol=1e-10, atol=1e-10)
+
+    tangent_eye = np.broadcast_to(np.eye(left.adj_size()), (batch, left.adj_size(), left.adj_size()))
+    np.testing.assert_allclose(
+        left.tangent_mat() @ left.tangent_mat_inv(),
+        tangent_eye,
+        rtol=1e-10,
+        atol=1e-10,
+    )
+
+
+def test_cmtm_batch_hat_adj_contract():
+    batch = 3
+    order = 5
+    vec1 = np.random.rand(batch, order, 6)
+    vec2 = np.random.rand(batch, order, 6)
+
+    hat_adj = mr.CMTM.hat_adj(mr.SE3, vec1)
+    hat_commute_adj = mr.CMTM.hat_commute_adj(mr.SE3, vec2)
+
+    assert hat_adj.shape == (batch, order * 6, order * 6)
+    assert hat_commute_adj.shape == (batch, order * 6, order * 6)
+    np.testing.assert_allclose(
+        hat_adj @ vec2.reshape(batch, order * 6, 1),
+        hat_commute_adj @ vec1.reshape(batch, order * 6, 1),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
 def test_cmtm_se3_batch_sub_and_variation():
     batch = 2
     order = 3
