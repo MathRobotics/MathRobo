@@ -1,5 +1,10 @@
-from ..basic import *
-from .lie_abst import *
+from typing import Union
+
+import numpy as np
+import jax.numpy as jnp
+
+from ..basic import identity
+from .lie_abst import LieAbstract
 
 class SO2(LieAbstract):
     _dof = 2

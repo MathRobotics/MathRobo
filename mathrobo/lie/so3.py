@@ -1,9 +1,11 @@
-from .lie_abst import *
-
 from typing import Union
 
 import jax
+import numpy as np
+import jax.numpy as jnp
+
 from .._batch import array_lib, matvec, transpose_last
+from .lie_abst import LieAbstract
 
 class SO3(LieAbstract):
     _dof = 3

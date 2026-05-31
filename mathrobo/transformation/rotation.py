@@ -2,10 +2,7 @@
 # -*- coding: utf-8 -*-
 # 2024.08.17 Created by T.Ishigaki
 
-import numpy as np
-
-from ..basic import *
-from ..lie import *
+from ..basic import cos, sin, zeros
 
 def euler_x(theta):
     m = zeros((3,3))

@@ -59,7 +59,9 @@ class FactorialVector:
         factors = xp.asarray([math.factorial(i) for i in range(n)], dtype=fac_vecs.dtype)
         factors = factors.reshape((1,) * (fac_vecs.ndim - 2) + (n, 1))
         vecs = fac_vecs / factors
-        return FactorialVector(vecs)
+        factorial_vec = FactorialVector(vecs)
+        factorial_vec._factorial_vecs = fac_vecs
+        return factorial_vec
     
     @staticmethod
     def set_ifac_vecs(ifac_vecs : Union[np.ndarray, jnp.ndarray]) -> 'FactorialVector':
@@ -70,7 +72,9 @@ class FactorialVector:
         factors = xp.asarray([math.factorial(i) for i in range(n)], dtype=ifac_vecs.dtype)
         factors = factors.reshape((1,) * (ifac_vecs.ndim - 2) + (n, 1))
         vecs = ifac_vecs * factors
-        return FactorialVector(vecs)
+        factorial_vec = FactorialVector(vecs)
+        factorial_vec._inverse_factorial_vecs = ifac_vecs
+        return factorial_vec
 
     def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
         if self._squeeze_vec:

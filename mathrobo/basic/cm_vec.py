@@ -1,10 +1,9 @@
-import math
 from typing import Union
 
 import numpy as np
 import jax.numpy as jnp
 
-from .factorial_vec import *
+from .factorial_vec import FactorialVector
 
 class CMVector:
     def __init__(self, vecs : Union[np.ndarray, jnp.ndarray]):
