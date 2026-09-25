@@ -244,17 +244,25 @@ class SO3(LieAbstract):
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if LIB == "jax":
-            vx, vy, vz = vec
-            return jnp.array([
-                            [   0, -vz,  vy],
-                            [  vz,   0, -vx],
-                            [ -vy,  vx,   0]], dtype=vec.dtype)
+            if vec.ndim == 1:
+                vx, vy, vz = vec
+                return jnp.array([
+                                [   0, -vz,  vy],
+                                [  vz,   0, -vx],
+                                [ -vy,  vx,   0]], dtype=vec.dtype)
+            vx, vy, vz = vec[..., 0], vec[..., 1], vec[..., 2]
+            zero = jnp.zeros_like(vx)
+            return jnp.stack((zero, -vz, vy, vz, zero, -vx, -vy, vx, zero), axis=-1).reshape(vec.shape[:-1] + (3, 3))
         elif LIB == "numpy":
-            vx, vy, vz = vec
-            return np.array([
-                            [   0, -vz,  vy],
-                            [  vz,   0, -vx],
-                            [ -vy,  vx,   0]], dtype=vec.dtype)
+            if vec.ndim == 1:
+                vx, vy, vz = vec
+                return np.array([
+                                [   0, -vz,  vy],
+                                [  vz,   0, -vx],
+                                [ -vy,  vx,   0]], dtype=vec.dtype)
+            vx, vy, vz = vec[..., 0], vec[..., 1], vec[..., 2]
+            zero = np.zeros_like(vx)
+            return np.stack((zero, -vz, vy, vz, zero, -vx, -vy, vx, zero), axis=-1).reshape(vec.shape[:-1] + (3, 3))
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
@@ -328,96 +336,108 @@ class SO3(LieAbstract):
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if LIB == 'numpy':
+            if vec.ndim > 1:
+                flat = vec.reshape((-1, 3))
+                return np.stack([SO3.exp_integ(v, a, LIB) for v in flat]).reshape(vec.shape[:-1] + (3, 3))
             theta = np.linalg.norm(vec)
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
+            if abs(a) * theta < 1e-12:
+                return a * np.identity(3)
+
+            a_ = a * theta
+            x, y, z = vec / theta
+            k = 1. / theta
+            if abs(a_) < 1e-3:
+                x2 = a_ * a_
+                sa = a_ * (1 - x2/6 + x2*x2/120 - x2*x2*x2/5040)
+                v = x2 * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
             else:
-                a_ = a
+                sa = np.sin(a_)
+                v = 1 - np.cos(a_)
+            u = a_ - sa
 
-            if math.isclose(theta, 0):
-                return a*np.identity(3)
-            else:
-                x, y, z = vec/theta
-                k = 1./theta
-
-            sa = np.sin(a_)
-            ca = np.cos(a_)
-
-            mat = np.zeros((3,3))
-
-            u = a_-sa
-            v = (1-ca)
-
-            mat[0,0] = k*(sa + u*x*x)
-            mat[0,1] = k*(u*x*y - v*z)
-            mat[0,2] = k*(u*z*x + v*y)
-            mat[1,0] = k*(u*x*y + v*z)
-            mat[1,1] = k*(sa + u*y*y)
-            mat[1,2] = k*(u*y*z - v*x)
-            mat[2,0] = k*(u*z*x - v*y)
-            mat[2,1] = k*(u*y*z + v*x)
-            mat[2,2] = k*(sa + u*z*z)
-
-            return mat
-
+            return k * np.array([
+                [sa + u*x*x, u*x*y - v*z, u*x*z + v*y],
+                [u*x*y + v*z, sa + u*y*y, u*y*z - v*x],
+                [u*x*z - v*y, u*y*z + v*x, sa + u*z*z],
+            ])
         elif LIB == 'jax':
-            n = jnp.linalg.norm(vec)
-            a_  = n * a
-            I  = jnp.eye(3, dtype=vec.dtype)
-            ca = jnp.cos(a_)
-            sa = jnp.sin(a_)
-
-            # Integral of exp(s * hat(vec)) ds on [0, a].
-            # Use the same coefficient form as the numpy path.
-            n2 = n * n
-            n3 = n2 * n
-            A  = jnp.where(n == 0.0, 0.0, (1.0 - ca) / n2)
-            B  = jnp.where(n == 0.0, 0.0, (a_ - sa) / n3)
-
+            vec = jnp.asarray(vec)
+            theta2 = jnp.sum(vec * vec, axis=-1)
+            tiny = (a * a) * theta2 < 1e-24
+            safe_theta2 = jnp.where(tiny, jnp.ones_like(theta2), theta2)
+            theta = jnp.sqrt(safe_theta2)
+            a_ = a * theta
+            x2 = a_ * a_
+            series = x2 < 1e-6
+            closed_theta2 = jnp.where(series, jnp.ones_like(theta2), safe_theta2)
+            closed_theta = jnp.sqrt(closed_theta2)
+            closed_angle = a * closed_theta
+            A_closed = (1.0 - jnp.cos(closed_angle)) / closed_theta2
+            B_closed = (closed_angle - jnp.sin(closed_angle)) / (closed_theta2 * closed_theta)
+            A_series = a*a * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
+            B_series = a*a*a * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)
+            A = jnp.where(series, A_series, A_closed)
+            B = jnp.where(series, B_series, B_closed)
             K = SO3.hat(vec, 'jax')
-
-            return a*I + A * K + B * (K @ K)
+            result = a * jnp.eye(3, dtype=vec.dtype) + A[..., None, None] * K + B[..., None, None] * (K @ K)
+            return jnp.where(tiny[..., None, None], a * jnp.eye(3, dtype=vec.dtype), result)
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
-    
+
     @staticmethod
     def exp_integ2nd(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if LIB == 'numpy':
+            if vec.ndim > 1:
+                flat = vec.reshape((-1, 3))
+                return np.stack([SO3.exp_integ2nd(v, a, LIB) for v in flat]).reshape(vec.shape[:-1] + (3, 3))
             theta = np.linalg.norm(vec)
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
+            if abs(a) * theta < 1e-12:
+                return 0.5 * a * a * np.identity(3)
+
+            a_ = a * theta
+            x, y, z = vec / theta
+            k = 1. / (theta * theta)
+            if abs(a_) < 1e-3:
+                x2 = a_ * a_
+                u = x2 * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
+                v = a_ * x2 * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)
+                w = x2*x2 * (1/24 - x2/720 + x2*x2/40320 - x2*x2*x2/3628800)
             else:
-                a_ = a
+                sa = np.sin(a_)
+                ca = np.cos(a_)
+                u = 1 - ca
+                v = a_ - sa
+                w = 0.5 * a_**2 - 1 + ca
 
-            if math.isclose(theta, 0):
-                return a*np.identity(3)
-            else:
-                x, y, z = vec/theta
-                k = 1./(theta*theta)
-
-            sa = np.sin(a_)
-            ca = np.cos(a_)
-
-            mat = np.zeros((3,3))
-
-            u = 1-ca
-            v = a_-sa
-            w = 0.5*a_**2-1+ca
-
-            mat[0,0] = k*(u  + w*x*x)
-            mat[0,1] = k*(w*x*y - v*z)
-            mat[0,2] = k*(w*z*x + v*y)
-            mat[1,0] = k*(w*x*y + v*z)
-            mat[1,1] = k*(u  + w*y*y)
-            mat[1,2] = k*(w*y*z - v*x)
-            mat[2,0] = k*(w*z*x - v*y)
-            mat[2,1] = k*(w*y*z + v*x)
-            mat[2,2] = k*(u  + w*z*z)
-            
-            return mat
+            return k * np.array([
+                [u + w*x*x, w*x*y - v*z, w*x*z + v*y],
+                [w*x*y + v*z, u + w*y*y, w*y*z - v*x],
+                [w*x*z - v*y, w*y*z + v*x, u + w*z*z],
+            ])
+        elif LIB == 'jax':
+            vec = jnp.asarray(vec)
+            theta2 = jnp.sum(vec * vec, axis=-1)
+            tiny = (a * a) * theta2 < 1e-24
+            safe_theta2 = jnp.where(tiny, jnp.ones_like(theta2), theta2)
+            theta = jnp.sqrt(safe_theta2)
+            a_ = a * theta
+            x2 = a_ * a_
+            series = x2 < 1e-6
+            closed_theta2 = jnp.where(series, jnp.ones_like(theta2), safe_theta2)
+            closed_theta = jnp.sqrt(closed_theta2)
+            closed_angle = a * closed_theta
+            A_closed = (closed_angle - jnp.sin(closed_angle)) / (closed_theta2 * closed_theta)
+            B_closed = (0.5 * closed_angle * closed_angle - 1.0 + jnp.cos(closed_angle)) / (closed_theta2 * closed_theta2)
+            A_series = a*a*a * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)
+            B_series = a**4 * (1/24 - x2/720 + x2*x2/40320 - x2*x2*x2/3628800)
+            A = jnp.where(series, A_series, A_closed)
+            B = jnp.where(series, B_series, B_closed)
+            K = SO3.hat(vec, 'jax')
+            result = 0.5 * a * a * jnp.eye(3, dtype=vec.dtype) + A[..., None, None] * K + B[..., None, None] * (K @ K)
+            return jnp.where(tiny[..., None, None], 0.5 * a * a * jnp.eye(3, dtype=vec.dtype), result)
         else:
-            raise ValueError("Unsupported library. Choose 'numpy'.")
-    
+            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.hat(vec, LIB)

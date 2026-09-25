@@ -241,12 +241,9 @@ class SE3(LieAbstract):
         
         if LIB == 'numpy':
             theta = np.linalg.norm(vec[0:3])
-            if not math.isclose(theta, 1.0):
-                a_ = a*theta
-            else:
-                a_ = a
+            a_ = a * theta
 
-            if math.isclose(theta, 0.0):
+            if abs(a) * theta < 1e-12:
                 return 0.5*a*a*SO3.hat(vec[3:6])
             else:
                 u, v, w = vec[0:3] / theta
@@ -374,13 +371,12 @@ class SE3(LieAbstract):
             raise ValueError("Input vector must be of size 6.")
 
         if LIB == 'jax':
-            w, v = vec[:3], vec[3:]
+            w, v = vec[..., :3], vec[..., 3:]
             w_hat = SO3.hat(w, LIB)
             v_hat = SO3.hat(v, LIB)
-            mat = jnp.block([
-                [w_hat, jnp.zeros((3, 3), dtype=vec.dtype)],
-                [v_hat, w_hat]
-            ])
+            zero = jnp.zeros_like(w_hat)
+            mat = jnp.concatenate((jnp.concatenate((w_hat, zero), axis=-1),
+                                   jnp.concatenate((v_hat, w_hat), axis=-1)), axis=-2)
         elif LIB == 'numpy':
             wx, wy, wz, vx, vy, vz = vec
             mat = np.zeros((6, 6))
@@ -458,36 +454,67 @@ class SE3(LieAbstract):
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
-        
-        """
-            SE3の随伴表現の積分の計算
-        """
+
         if LIB == 'numpy':
+            if vec.ndim > 1:
+                flat = vec.reshape((-1, 6))
+                return np.stack([SE3.exp_integ_adj(v, a, LIB) for v in flat]).reshape(vec.shape[:-1] + (6, 6))
             rot = vec[0:3]
+            theta = np.linalg.norm(rot)
+            if abs(a) * theta < 1e-12:
+                mat = a * np.identity(6)
+                mat[3:6, 0:3] = 0.5 * a * a * SO3.hat(vec[3:6], LIB)
+                return mat
+            if abs(a) * theta < 1e-3:
+                x2 = a*a*theta*theta
+                A1 = a*a * (1/2 - x2*x2/720 + x2*x2*x2/20160)
+                A2 = a**3 * (1/6 - x2*x2/5040 + x2*x2*x2/181440)
+                A3 = a**4 * (1/24 - x2/360 + x2*x2/13440 - x2*x2*x2/907200)
+                A4 = a**5 * (1/120 - x2/2520 + x2*x2/120960 - x2*x2*x2/9979200)
+                K = SE3.hat_adj(vec, LIB)
+                K2 = K @ K
+                K3 = K2 @ K
+                return a*np.identity(6) + A1*K + A2*K2 + A3*K3 + A4*(K3 @ K)
+
+            r = SO3.exp_integ(rot, a, LIB)
+            mat = np.zeros((6, 6))
+            mat[0:3, 0:3] = r
+            mat[3:6, 0:3] = SE3.__integ_p_cross_r(vec, a, LIB)
+            mat[3:6, 3:6] = r
+            return mat
         elif LIB == 'jax':
-            w, _ = jnp.split(vec, 2, axis=-1)
-            n = jnp.linalg.norm(w)
-            a_ = a * n
-            ca = jnp.cos(a_)
-            sa = jnp.sin(a_)
-            A0 = jnp.eye(6) * a
-            A1 = jnp.where(a_ == 0.0, 0.5*a_*a_, 0.5 * (4.0 - 4.0*ca - a_*sa)/ (n*n))
-            A2 = jnp.where(a_ == 0.0, 0.0, 0.5 * (4.0*a_ - 5.0*sa + a_*ca)/ (n*n*n))
-            A3 = jnp.where(a_ == 0.0, 0.0, 0.5 * (2.0 - 2.0*ca -a_*sa)/ (n*n*n*n))
-            A4 = jnp.where(a_ == 0.0, 0.0, 0.5 * (2.0*a_ - 3*sa + a_*ca)/ (n*n*n*n*n))
-            K = SE3.hat_adj(vec, 'jax')
-            return A0 + A1*K + A2*K@K + A3*K@K@K + A4*K@K@K@K
+            w, v = jnp.split(vec, 2, axis=-1)
+            theta2 = jnp.sum(w * w, axis=-1)
+            tiny = (a * a) * theta2 < 1e-24
+            safe_theta2 = jnp.where(tiny, jnp.ones_like(theta2), theta2)
+            theta = jnp.sqrt(safe_theta2)
+            angle = a * theta
+            x2 = (a*a) * theta2
+            series = x2 < 1e-6
+            closed_theta2 = jnp.where(series, jnp.ones_like(theta2), safe_theta2)
+            closed_theta = jnp.sqrt(closed_theta2)
+            closed_angle = a * closed_theta
+            closed_ca, closed_sa = jnp.cos(closed_angle), jnp.sin(closed_angle)
+            A1_closed = (4.0 - 4.0*closed_ca - closed_angle*closed_sa) / (2.0 * closed_theta2)
+            A2_closed = (4.0*closed_angle - 5.0*closed_sa + closed_angle*closed_ca) / (2.0 * closed_theta2 * closed_theta)
+            A3_closed = (2.0 - 2.0*closed_ca - closed_angle*closed_sa) / (2.0 * closed_theta2 * closed_theta2)
+            A4_closed = (2.0*closed_angle - 3.0*closed_sa + closed_angle*closed_ca) / (2.0 * closed_theta2 * closed_theta2 * closed_theta)
+            A1_series = a*a * (1/2 - x2*x2/720 + x2*x2*x2/20160)
+            A2_series = a**3 * (1/6 - x2*x2/5040 + x2*x2*x2/181440)
+            A3_series = a**4 * (1/24 - x2/360 + x2*x2/13440 - x2*x2*x2/907200)
+            A4_series = a**5 * (1/120 - x2/2520 + x2*x2/120960 - x2*x2*x2/9979200)
+            A1 = jnp.where(series, A1_series, A1_closed)
+            A2 = jnp.where(series, A2_series, A2_closed)
+            A3 = jnp.where(series, A3_series, A3_closed)
+            A4 = jnp.where(series, A4_series, A4_closed)
+            w = jnp.where(tiny[..., None], jnp.zeros_like(w), w)
+            K = SE3.hat_adj(jnp.concatenate((w, v), axis=-1), 'jax')
+            K2 = K @ K
+            K3 = K2 @ K
+            K4 = K3 @ K
+            return a*jnp.eye(6, dtype=vec.dtype) + A1[..., None, None]*K + A2[..., None, None]*K2 + A3[..., None, None]*K3 + A4[..., None, None]*K4
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
-
-        r = SO3.exp_integ(rot, a, LIB)
-
-        mat = np.zeros((6,6))
-        mat[0:3,0:3] = r
-        mat[3:6,0:3] = SE3.__integ_p_cross_r(vec, a, LIB)
-        mat[3:6,3:6] = r
-
-        return mat
 
     @staticmethod
     def sub_tan_vec(val0 : 'SE3', val1 : 'SE3', 
