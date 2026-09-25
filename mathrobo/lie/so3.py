@@ -314,35 +314,54 @@ class SO3(LieAbstract):
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
-        theta = xp.linalg.norm(vec, axis=-1)
+        theta2 = xp.sum(vec * vec, axis=-1)
+        tiny = a * a * theta2 < 1e-24
+        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
+        theta = xp.sqrt(safe_theta2)
         a_theta = a * theta
+        x2 = a * a * theta2
+        series = x2 < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        closed_theta = xp.sqrt(closed_theta2)
+        closed_angle = a * closed_theta
         K = SO3.hat(vec, LIB)
         K2 = K @ K
-        theta_safe = xp.where(theta == 0, 1.0, theta)
-        theta2 = theta_safe * theta_safe
-        theta3 = theta2 * theta_safe
-        A = xp.where(theta == 0, 0.0, (1.0 - xp.cos(a_theta)) / theta2)
-        B = xp.where(theta == 0, 0.0, (a_theta - xp.sin(a_theta)) / theta3)
+        A_closed = (1.0 - xp.cos(closed_angle)) / closed_theta2
+        B_closed = (closed_angle - xp.sin(closed_angle)) / (closed_theta2 * closed_theta)
+        A_series = a*a * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
+        B_series = a*a*a * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)
+        A = xp.where(series, A_series, A_closed)
+        B = xp.where(series, B_series, B_closed)
         I = xp.eye(3, dtype=vec.dtype)
-        return a * I + A[..., None, None] * K + B[..., None, None] * K2
+        result = a * I + A[..., None, None] * K + B[..., None, None] * K2
+        return xp.where(tiny[..., None, None], a * I, result)
     
     @staticmethod
     def exp_integ2nd(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
-        theta = xp.linalg.norm(vec, axis=-1)
+        theta2 = xp.sum(vec * vec, axis=-1)
+        tiny = a * a * theta2 < 1e-24
+        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
+        theta = xp.sqrt(safe_theta2)
         a_theta = a * theta
+        x2 = a * a * theta2
+        series = x2 < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        closed_theta = xp.sqrt(closed_theta2)
+        closed_angle = a * closed_theta
         K = SO3.hat(vec, LIB)
         K2 = K @ K
-        theta_safe = xp.where(theta == 0, 1.0, theta)
-        theta2 = theta_safe * theta_safe
-        theta3 = theta2 * theta_safe
-        theta4 = theta2 * theta2
-        A = xp.where(theta == 0, 0.0, (a_theta - xp.sin(a_theta)) / theta3)
-        B = xp.where(theta == 0, 0.0, (0.5 * a_theta * a_theta - 1.0 + xp.cos(a_theta)) / theta4)
+        A_closed = (closed_angle - xp.sin(closed_angle)) / (closed_theta2 * closed_theta)
+        B_closed = (0.5 * closed_angle * closed_angle - 1.0 + xp.cos(closed_angle)) / (closed_theta2 * closed_theta2)
+        A_series = a*a*a * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)
+        B_series = a**4 * (1/24 - x2/720 + x2*x2/40320 - x2*x2*x2/3628800)
+        A = xp.where(series, A_series, A_closed)
+        B = xp.where(series, B_series, B_closed)
         I = xp.eye(3, dtype=vec.dtype)
-        return 0.5 * a * a * I + A[..., None, None] * K + B[..., None, None] * K2
+        result = 0.5 * a * a * I + A[..., None, None] * K + B[..., None, None] * K2
+        return xp.where(tiny[..., None, None], 0.5 * a * a * I, result)
     
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:

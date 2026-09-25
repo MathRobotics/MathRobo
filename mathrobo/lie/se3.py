@@ -469,29 +469,36 @@ class SE3(LieAbstract):
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
-        
-        """
-            SE3の随伴表現の積分の計算
-        """
         xp = array_lib(LIB)
         w = vec[..., 0:3]
-        n = xp.linalg.norm(w, axis=-1)
-        a_ = a * n
-        ca = xp.cos(a_)
-        sa = xp.sin(a_)
-        K = SE3.hat_adj(vec, LIB)
+        v = vec[..., 3:6]
+        theta2 = xp.sum(w * w, axis=-1)
+        tiny = a * a * theta2 < 1e-24
+        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
+        theta = xp.sqrt(safe_theta2)
+        x2 = a * a * theta2
+        series = x2 < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        closed_theta = xp.sqrt(closed_theta2)
+        closed_angle = a * closed_theta
+        ca, sa = xp.cos(closed_angle), xp.sin(closed_angle)
+        A1_closed = (4.0 - 4.0*ca - closed_angle*sa) / (2.0 * closed_theta2)
+        A2_closed = (4.0*closed_angle - 5.0*sa + closed_angle*ca) / (2.0 * closed_theta2 * closed_theta)
+        A3_closed = (2.0 - 2.0*ca - closed_angle*sa) / (2.0 * closed_theta2 * closed_theta2)
+        A4_closed = (2.0*closed_angle - 3.0*sa + closed_angle*ca) / (2.0 * closed_theta2 * closed_theta2 * closed_theta)
+        A1_series = a*a * (1/2 - x2*x2/720 + x2*x2*x2/20160)
+        A2_series = a**3 * (1/6 - x2*x2/5040 + x2*x2*x2/181440)
+        A3_series = a**4 * (1/24 - x2/360 + x2*x2/13440 - x2*x2*x2/907200)
+        A4_series = a**5 * (1/120 - x2/2520 + x2*x2/120960 - x2*x2*x2/9979200)
+        A1 = xp.where(series, A1_series, A1_closed)
+        A2 = xp.where(series, A2_series, A2_closed)
+        A3 = xp.where(series, A3_series, A3_closed)
+        A4 = xp.where(series, A4_series, A4_closed)
+        w = xp.where(tiny[..., None], xp.zeros_like(w), w)
+        K = SE3.hat_adj(xp.concatenate((w, v), axis=-1), LIB)
         K2 = K @ K
         K3 = K2 @ K
-        K4 = K2 @ K2
-        n_safe = xp.where(n == 0.0, 1.0, n)
-        n2 = n_safe * n_safe
-        n3 = n2 * n_safe
-        n4 = n2 * n2
-        n5 = n4 * n_safe
-        A1 = xp.where(n == 0.0, 0.5 * a * a, 0.5 * (4.0 - 4.0 * ca - a_ * sa) / n2)
-        A2 = xp.where(n == 0.0, 0.0, 0.5 * (4.0 * a_ - 5.0 * sa + a_ * ca) / n3)
-        A3 = xp.where(n == 0.0, 0.0, 0.5 * (2.0 - 2.0 * ca - a_ * sa) / n4)
-        A4 = xp.where(n == 0.0, 0.0, 0.5 * (2.0 * a_ - 3.0 * sa + a_ * ca) / n5)
+        K4 = K3 @ K
         I = xp.eye(6, dtype=vec.dtype)
         return (
             a * I
