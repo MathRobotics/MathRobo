@@ -1,6 +1,7 @@
 """Small-angle values and derivatives against independent matrix exponentials."""
 
 from functools import lru_cache
+from math import factorial
 
 import jax
 import jax.numpy as jnp
@@ -46,6 +47,24 @@ def augmented(vec, index):
 def reference(vec, a, index):
     m, n = augmented(vec, index)
     return expm(a*m)[:n, -n:]
+
+
+def small_angle_reference(vec, a, index):
+    """Integrate the exponential power series at the tiny-angle boundary.
+
+    The augmented expm reference can introduce O(eps) absolute errors into
+    O(1e-12) entries when translation is nonzero. Direct powers preserve these
+    entries without using the production implementation's closed coefficients.
+    This reference is only used for effective rotation angles near 1e-12.
+    """
+    _, hat, order = METHODS[index]
+    h = hat(vec.astype(np.float64))
+    term = a**order / factorial(order) * np.eye(len(h))
+    result = term.copy()
+    for k in range(1, 12):
+        term = (term @ (a * h)) / (k + order)
+        result += term
+    return result
 
 
 @lru_cache(None)
@@ -157,5 +176,6 @@ def test_zero_rotation_limit(index, mode, a):
         # Translation products may round differently depending on multiplication order.
         np.testing.assert_allclose(result[0], limit, rtol=3e-16 if index == 2 else 0, atol=0)
         for v, actual in zip(vec[5:], result[5:]):
-            np.testing.assert_allclose(actual, reference(v, a, index), rtol=2e-15, atol=1e-27)
+            np.testing.assert_allclose(actual, small_angle_reference(v, a, index),
+                                       rtol=2e-15, atol=1e-27)
             assert actual[1, 2] != 0
