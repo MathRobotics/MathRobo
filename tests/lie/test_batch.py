@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import mathrobo as mr
 
@@ -128,6 +129,165 @@ def test_cmtm_se3_batch_order5_mul_inv_and_tangent():
         rtol=1e-10,
         atol=1e-10,
     )
+
+
+def test_cmtm_se3_apply_methods_match_dense_matrices():
+    batch = 2
+    order = 5
+    cmtm = mr.CMTM[mr.SE3](
+        mr.SE3.set_mat(mr.SE3.exp(np.random.rand(batch, 6), 0.2)),
+        np.random.rand(batch, order - 1, 6),
+    )
+
+    rhs = np.random.rand(batch, cmtm.size())
+    rhs_mat = np.random.rand(batch, cmtm.size(), 4)
+    adj_rhs = np.random.rand(batch, cmtm.adj_size())
+    adj_rhs_mat = np.random.rand(batch, cmtm.adj_size(), 3)
+    cm_rhs = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
+
+    np.testing.assert_allclose(
+        cmtm.apply_mat(rhs),
+        (cmtm.mat() @ rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_mat(rhs_mat),
+        cmtm.mat() @ rhs_mat,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_mat_inv(rhs),
+        (cmtm.mat_inv() @ rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_mat_adj(adj_rhs),
+        (cmtm.mat_adj() @ adj_rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_mat_inv_adj(adj_rhs),
+        (cmtm.mat_inv_adj() @ adj_rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_mat_adj(adj_rhs_mat),
+        cmtm.mat_adj() @ adj_rhs_mat,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        (cmtm @ cm_rhs).cm_vec(),
+        (cmtm.mat_adj() @ cm_rhs.cm_vec()[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_tangent_mat(adj_rhs),
+        (cmtm.tangent_mat() @ adj_rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        cmtm.apply_tangent_mat_cm(adj_rhs),
+        (cmtm.tangent_mat_cm() @ adj_rhs[..., None])[..., 0],
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
+def test_cmtm_apply_methods_match_dense_unbatched():
+    order = 5
+    for group in (mr.SE3, mr.SE3wrench):
+        cmtm = mr.CMTM[group](
+            group.set_mat(group.exp(np.random.rand(6), 0.2)),
+            np.random.rand(order - 1, 6),
+        )
+        rhs = np.random.rand(cmtm.size())
+        rhs_mat = np.random.rand(cmtm.size(), 3)
+        adj_rhs = np.random.rand(cmtm.adj_size())
+        adj_rhs_mat = np.random.rand(cmtm.adj_size(), 4)
+
+        np.testing.assert_allclose(cmtm.apply_mat(rhs), cmtm.mat() @ rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat(rhs_mat), cmtm.mat() @ rhs_mat, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_inv(rhs), cmtm.mat_inv() @ rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_inv(rhs_mat), cmtm.mat_inv() @ rhs_mat, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_adj(adj_rhs), cmtm.mat_adj() @ adj_rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_adj(adj_rhs_mat), cmtm.mat_adj() @ adj_rhs_mat, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_inv_adj(adj_rhs), cmtm.mat_inv_adj() @ adj_rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_mat_inv_adj(adj_rhs_mat), cmtm.mat_inv_adj() @ adj_rhs_mat, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_tangent_mat(adj_rhs), cmtm.tangent_mat() @ adj_rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_tangent_mat(adj_rhs_mat), cmtm.tangent_mat() @ adj_rhs_mat, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_tangent_mat_cm(adj_rhs), cmtm.tangent_mat_cm() @ adj_rhs, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(cmtm.apply_tangent_mat_cm(adj_rhs_mat), cmtm.tangent_mat_cm() @ adj_rhs_mat, rtol=1e-12, atol=1e-12)
+
+        cm_rhs = mr.cmvec.CMVector(np.random.rand(order, 6))
+        np.testing.assert_allclose(
+            cmtm.apply_cmvector(cm_rhs).cm_vec(),
+            cmtm.mat_adj() @ cm_rhs.cm_vec(),
+            rtol=1e-12,
+            atol=1e-12,
+        )
+
+
+def test_cmtm_apply_methods_broadcast_rhs_batch():
+    order = 5
+    for group in (mr.SE3, mr.SE3wrench):
+        cmtm = mr.CMTM[group](
+            group.set_mat(group.exp(np.random.rand(2, 1, 6), 0.2)),
+            np.random.rand(2, 1, order - 1, 6),
+        )
+        rhs = np.random.rand(3, cmtm.adj_size())
+        rhs_mat = np.random.rand(3, cmtm.adj_size(), 2)
+
+        np.testing.assert_allclose(
+            cmtm.apply_mat_adj(rhs),
+            (cmtm.mat_adj() @ rhs[..., None])[..., 0],
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            cmtm.apply_mat_inv_adj(rhs),
+            (cmtm.mat_inv_adj() @ rhs[..., None])[..., 0],
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            cmtm.apply_tangent_mat(rhs),
+            (cmtm.tangent_mat() @ rhs[..., None])[..., 0],
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            cmtm.apply_mat_adj(rhs_mat),
+            cmtm.mat_adj() @ rhs_mat,
+            rtol=1e-12,
+            atol=1e-12,
+        )
+
+
+def test_cmtm_apply_methods_reject_invalid_shapes():
+    cmtm = mr.CMTM.rand(mr.SE3, 5)
+
+    with pytest.raises(ValueError):
+        cmtm.apply_mat(np.zeros(cmtm.size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_mat_adj(np.zeros(cmtm.adj_size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_mat_inv(np.zeros(cmtm.size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_mat_inv_adj(np.zeros(cmtm.adj_size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_tangent_mat(np.zeros(cmtm.adj_size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_tangent_mat_cm(np.zeros(cmtm.adj_size() + 1))
+    with pytest.raises(ValueError):
+        cmtm.apply_cmvector(mr.cmvec.CMVector(np.zeros((cmtm._n - 1, cmtm._mat_adj_size))))
 
 
 def test_cmtm_batch_hat_adj_contract():

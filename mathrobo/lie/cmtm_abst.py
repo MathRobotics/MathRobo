@@ -296,6 +296,97 @@ class CMTM(Generic[T]):
         return toeplitz_blocks.transpose(axes).reshape(batch_shape + (mat_size * output_order, mat_size * output_order))
 
     @staticmethod
+    def _toeplitz_blocks_matmul_numpy(l_blocks: np.ndarray, r_blocks: np.ndarray) -> np.ndarray:
+        output_order = l_blocks.shape[-3]
+        mat_size = l_blocks.shape[-1]
+        batch_shape = np.broadcast_shapes(l_blocks.shape[:-3], r_blocks.shape[:-3])
+        dtype = np.result_type(l_blocks.dtype, r_blocks.dtype)
+        out_blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
+
+        for k in range(output_order):
+            acc = np.zeros(batch_shape + (mat_size, mat_size), dtype=dtype)
+            for i in range(k + 1):
+                acc += l_blocks[..., i, :, :] @ r_blocks[..., k - i, :, :]
+            out_blocks[..., k, :, :] = acc
+
+        return out_blocks
+
+    @staticmethod
+    def _apply_lower_toeplitz_blocks_numpy(blocks: np.ndarray, rval: np.ndarray) -> np.ndarray:
+        output_order = blocks.shape[-3]
+        batch_shape = blocks.shape[:-3]
+        mat_size = blocks.shape[-1]
+        total_size = output_order * mat_size
+
+        if rval.ndim >= 2 and rval.shape[-2] == total_size:
+            cols = rval.shape[-1]
+            rhs = rval.reshape(rval.shape[:-2] + (output_order, mat_size, cols))
+            out_batch_shape = np.broadcast_shapes(batch_shape, rhs.shape[:-3])
+            out = np.zeros(
+                out_batch_shape + (output_order, mat_size, cols),
+                dtype=np.result_type(blocks.dtype, rval.dtype),
+            )
+            for k in range(output_order):
+                out[..., k:, :, :] += blocks[..., k, :, :][..., None, :, :] @ rhs[..., :output_order-k, :, :]
+            return out.reshape(out_batch_shape + (total_size, cols))
+
+        if rval.shape[-1] != total_size:
+            raise ValueError("Right operand has incompatible trailing dimension")
+
+        rhs = rval.reshape(rval.shape[:-1] + (output_order, mat_size))
+        out_batch_shape = np.broadcast_shapes(batch_shape, rhs.shape[:-2])
+        out = np.zeros(
+            out_batch_shape + (output_order, mat_size),
+            dtype=np.result_type(blocks.dtype, rval.dtype),
+        )
+        for k in range(output_order):
+            out[..., k:, :] += matvec(blocks[..., k, :, :][..., None, :, :], rhs[..., :output_order-k, :])
+        return out.reshape(out_batch_shape + (total_size,))
+
+    @staticmethod
+    def _apply_lower_tri_blocks_numpy(
+        blocks: np.ndarray,
+        rval: np.ndarray,
+        col_scales: np.ndarray = None,
+    ) -> np.ndarray:
+        output_order = blocks.shape[-4]
+        batch_shape = blocks.shape[:-4]
+        mat_size = blocks.shape[-1]
+        total_size = output_order * mat_size
+
+        tri_blocks = blocks
+        if col_scales is not None:
+            scale_shape = (1,) * len(batch_shape) + (1, output_order, 1, 1)
+            tri_blocks = tri_blocks * col_scales.reshape(scale_shape)
+
+        idx = np.arange(output_order)
+        mask = idx[:, None] >= idx[None, :]
+        tri_blocks = np.where(mask[(None,) * len(batch_shape) + (..., None, None)], tri_blocks, 0)
+
+        if rval.ndim >= 2 and rval.shape[-2] == total_size:
+            cols = rval.shape[-1]
+            rhs = rval.reshape(rval.shape[:-2] + (output_order, mat_size, cols))
+            out_batch_shape = np.broadcast_shapes(batch_shape, rhs.shape[:-3])
+            out = np.einsum('...ijab,...jbc->...iac', tri_blocks, rhs, optimize=True)
+            return out.reshape(out_batch_shape + (total_size, cols))
+
+        if rval.shape[-1] != total_size:
+            raise ValueError("Right operand has incompatible trailing dimension")
+
+        rhs = rval.reshape(rval.shape[:-1] + (output_order, mat_size))
+        out_batch_shape = np.broadcast_shapes(batch_shape, rhs.shape[:-2])
+        out = np.einsum('...ijab,...jb->...ia', tri_blocks, rhs, optimize=True)
+        return out.reshape(out_batch_shape + (total_size,))
+
+    @staticmethod
+    def _apply_cached_matrix_numpy(mat: np.ndarray, rval: np.ndarray) -> np.ndarray:
+        if rval.ndim >= 2 and rval.shape[-2] == mat.shape[-1]:
+            return mat @ rval
+        if rval.shape[-1] == mat.shape[-1]:
+            return matvec(mat, rval)
+        raise ValueError("Right operand has incompatible trailing dimension")
+
+    @staticmethod
     def _lower_tri_blocks_numpy(blocks: np.ndarray, col_scales: np.ndarray = None) -> np.ndarray:
         output_order = blocks.shape[-4]
         batch_shape = blocks.shape[:-4]
@@ -444,8 +535,8 @@ class CMTM(Generic[T]):
 
             return CMTM(m, vs, LIB=LIB)
 
-        # SE3-specialized fast path for the dominant CMTM multiplication use-case.
-        if T.__name__ == 'SE3' and size == 4 and dof == 6:
+        # SE3/SE3wrench-specialized fast path for homogeneous 4x4 blocks.
+        if T.__name__ in ('SE3', 'SE3wrench') and size == 4 and dof == 6:
             m = T.set_mat(mat_blocks[0], LIB=LIB)
             vs = np.zeros((n - 1, 6), dtype=mat_blocks.dtype)
 
@@ -657,6 +748,12 @@ class CMTM(Generic[T]):
             v = cmvec.CMVector.set_cmvecs(inv_cmvec.reshape(self._n-1, self._dof))
             return CMTM(self._mat.inv(), v.vecs())
         else:
+            if self._lib == 'numpy':
+                return CMTM._set_from_mat_blocks(
+                    type(self._mat),
+                    self._mat_inv_blocks_numpy(self._n),
+                    LIB=self._lib,
+                )
             return CMTM.set_mat(type(self._mat), self.mat_inv(), LIB=self._lib)
 
     def __mat_inv_elem(self, p : int):
@@ -704,6 +801,67 @@ class CMTM(Generic[T]):
         if len(batch_shape) == 0:
             self._mat_inv_adj_matrix_cache_numpy[output_order] = mat.copy()
         return mat
+
+    def apply_mat(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the transformation to vectors or matrices with broadcast batch axes."""
+        output_order = self.__check_output_order(output_order)
+        if self._lib != 'numpy':
+            return self.mat(output_order) @ rval
+        cached = self._mat_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        return self._apply_lower_toeplitz_blocks_numpy(
+            self._mat_blocks_numpy(output_order),
+            np.asarray(rval),
+        )
+
+    def apply_mat_adj(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the adjoint transformation to vectors or matrices."""
+        output_order = self.__check_output_order(output_order)
+        if self._lib != 'numpy':
+            return self.mat_adj(output_order) @ rval
+        cached = self._mat_adj_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        return self._apply_lower_toeplitz_blocks_numpy(
+            self._mat_adj_blocks_numpy(output_order),
+            np.asarray(rval),
+        )
+
+    def apply_mat_inv(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the inverse transformation to vectors or matrices."""
+        output_order = self.__check_output_order(output_order)
+        if self._lib != 'numpy':
+            return self.mat_inv(output_order) @ rval
+        cached = self._mat_inv_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        return self._apply_lower_toeplitz_blocks_numpy(
+            self._mat_inv_blocks_numpy(output_order),
+            np.asarray(rval),
+        )
+
+    def apply_mat_inv_adj(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the inverse adjoint transformation to vectors or matrices."""
+        output_order = self.__check_output_order(output_order)
+        if self._lib != 'numpy':
+            return self.mat_inv_adj(output_order) @ rval
+        cached = self._mat_inv_adj_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        return self._apply_lower_toeplitz_blocks_numpy(
+            self._mat_inv_adj_blocks_numpy(output_order),
+            np.asarray(rval),
+        )
+
+    def apply_cmvector(self, rval: cmvec.CMVector, output_order = None) -> cmvec.CMVector:
+        """Transform a CMVector using its first output_order components."""
+        output_order = self.__check_output_order(output_order)
+        if rval._n < output_order:
+            raise ValueError("CMVector order should be greater than or equal to output_order")
+        rval_cm_vecs = rval.cm_vecs()[..., :output_order, :]
+        res = self.apply_mat_adj(flatten_last2(rval_cm_vecs), output_order)
+        return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (output_order, self._mat_adj_size)))
     
     @staticmethod
     def __hat_func(hat, vecs):
@@ -848,12 +1006,30 @@ class CMTM(Generic[T]):
         if cached is not None:
             return cached.copy()
         tangent = self._tangent_table_numpy(output_order)
-        scales = np.ones(output_order, dtype=tangent.dtype)
-        for j in range(2, output_order):
-            scales[j] = 1 / math.factorial(j - 1)
+        scales = self._tangent_scales_numpy(output_order, tangent.dtype)
         mat = self._lower_tri_blocks_numpy(tangent, col_scales=scales)
         self._tangent_matrix_cache_numpy[output_order] = mat.copy()
         return mat
+
+    @staticmethod
+    def _tangent_scales_numpy(output_order: int, dtype) -> np.ndarray:
+        scales = np.ones(output_order, dtype=dtype)
+        for j in range(2, output_order):
+            scales[j] = 1 / math.factorial(j - 1)
+        return scales
+
+    def apply_tangent_mat(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the tangent matrix to vectors or matrices."""
+        output_order = self.__check_output_order(output_order)
+        cached = self._tangent_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        tangent = self._tangent_table_numpy(output_order)
+        return self._apply_lower_tri_blocks_numpy(
+            tangent,
+            np.asarray(rval),
+            col_scales=self._tangent_scales_numpy(output_order, tangent.dtype),
+        )
 
     def tangent_mat_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
@@ -879,6 +1055,17 @@ class CMTM(Generic[T]):
         mat = self._lower_tri_blocks_numpy(tangent_cm)
         self._tangent_cm_matrix_cache_numpy[output_order] = mat.copy()
         return mat
+
+    def apply_tangent_mat_cm(self, rval: np.ndarray, output_order = None) -> np.ndarray:
+        """Apply the CM tangent matrix to vectors or matrices."""
+        output_order = self.__check_output_order(output_order)
+        cached = self._tangent_cm_matrix_cache_numpy.get(output_order)
+        if cached is not None:
+            return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
+        return self._apply_lower_tri_blocks_numpy(
+            self._tangent_cm_table_numpy(output_order),
+            np.asarray(rval),
+        )
 
     def tangent_mat_cm_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
@@ -919,10 +1106,27 @@ class CMTM(Generic[T]):
         if lval._dof != rval._dof:
             raise TypeError("Left operand should be same dof in right operand")
 
+        if lval._lib == 'numpy' and rval._lib == 'numpy':
+            l_blocks = lval._mat_blocks_numpy(lval._n)
+            diff_blocks = rval._mat_blocks_numpy(rval._n) - l_blocks
+            l_inv_blocks = lval._mat_inv_blocks_numpy(lval._n)
+
+            if frame == 'bframe':
+                blocks = CMTM._toeplitz_blocks_matmul_numpy(l_inv_blocks, diff_blocks)
+            elif frame == 'fframe':
+                blocks = CMTM._toeplitz_blocks_matmul_numpy(diff_blocks, l_inv_blocks)
+            else:
+                raise ValueError("frame should be 'bframe' or 'fframe'")
+
+            vec = type(lval._mat).vee(blocks, LIB=lval._lib)
+            return flatten_last2(vec)
+
         if frame == 'bframe':
             vec = lval.vee(type(lval._mat), lval.mat_inv() @ (rval.mat() - lval.mat()))
         elif frame == 'fframe':
             vec = lval.vee(type(lval._mat), (rval.mat() - lval.mat()) @ lval.mat_inv())
+        else:
+            raise ValueError("frame should be 'bframe' or 'fframe'")
         
         return flatten_last2(vec)
 
@@ -933,17 +1137,7 @@ class CMTM(Generic[T]):
                     if self._lib == 'numpy' and rval._lib == 'numpy':
                         l_blocks = self._mat_blocks_numpy(self._n)
                         r_blocks = rval._mat_blocks_numpy(rval._n)
-                        dtype = np.result_type(l_blocks.dtype, r_blocks.dtype)
-                        mat_size = self._mat_size
-                        batch_shape = np.broadcast_shapes(l_blocks.shape[:-3], r_blocks.shape[:-3])
-                        out_blocks = np.zeros(batch_shape + (self._n, mat_size, mat_size), dtype=dtype)
-
-                        for k in range(self._n):
-                            acc = np.zeros(batch_shape + (mat_size, mat_size), dtype=dtype)
-                            for i in range(k + 1):
-                                acc += l_blocks[..., i, :, :] @ r_blocks[..., k - i, :, :]
-                            out_blocks[..., k, :, :] = acc
-
+                        out_blocks = self._toeplitz_blocks_matmul_numpy(l_blocks, r_blocks)
                         return CMTM._set_from_mat_blocks(type(self._mat), out_blocks, LIB=self._lib)
                     # fallback for non-numpy backends
                     return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat(), LIB=self._lib)
@@ -971,9 +1165,10 @@ class CMTM(Generic[T]):
             else:
                 raise TypeError("Right operand should be same size in left operand")
         elif isinstance(rval, cmvec.CMVector):
-            res = matvec(self.mat_adj(), rval.cm_vec())
-            return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
+            return self.apply_cmvector(rval)
         elif isinstance(rval, np.ndarray):
+            if self._lib == 'numpy':
+                return self.apply_mat(rval)
             return self.mat() @ rval
         else:
             raise TypeError("Right operand should be CMTM or numpy.ndarray")

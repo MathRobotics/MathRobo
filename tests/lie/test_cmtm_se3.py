@@ -475,3 +475,18 @@ def test_cmtm_se3_wrench_mat_var_x_arb_vec_num_jacob():
     jacob_num = mr.numerical_grad(np.zeros(mat.adj_size()), func)
 
     np.testing.assert_allclose(res, jacob_num, rtol=1e-6, atol=1e-6)
+
+
+def test_cmtm_se3_wrench_order5_matmul():
+    order = 5
+    left = mr.CMTM.rand(mr.SE3wrench, order)
+    right = mr.CMTM.rand(mr.SE3wrench, order)
+
+    result = left @ right
+
+    np.testing.assert_allclose(
+        result.mat(),
+        left.mat() @ right.mat(),
+        rtol=1e-10,
+        atol=1e-10,
+    )
