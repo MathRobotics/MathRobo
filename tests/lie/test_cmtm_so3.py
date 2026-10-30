@@ -108,7 +108,7 @@ def test_cmtm_so3_getter():
     
     np.testing.assert_array_equal(res.elem_mat(), so3.mat())
     for i in range(test_order):
-        np.testing.assert_array_equal(res.elem_vecs(i), vec[i])
+        np.testing.assert_allclose(res.elem_vecs(i), vec[i], rtol=1e-15, atol=1e-15)
 
 def test_cmtm_so3_set_mat():
     so3 = mr.SO3.rand() 
@@ -136,8 +136,8 @@ def test_cmtm_so3_vecs_flatten():
     vec = np.random.rand(test_order,3)
 
     res = mr.CMTM[mr.SO3](so3, vec)
-    np.testing.assert_array_equal(res.vecs_flatten(), vec.flatten())
-    np.testing.assert_array_equal(res.vecs_flatten(3), vec[:2].flatten())
+    np.testing.assert_allclose(res.vecs_flatten(), vec.flatten(), rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.vecs_flatten(3), vec[:2].flatten(), rtol=1e-15, atol=1e-15)
 
 def test_cmtm_so3_inv():
     so3 = mr.SO3.rand()
@@ -292,7 +292,7 @@ def test_cmtm_so3_sub_vec():
         sol[0:3] = mr.SO3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
         if i > 0: 
             for j in range(i):
-                sol[3*(j+1):3*(j+2)] = mat2._vecs[j] - mat1._vecs[j]
+                sol[3*(j+1):3*(j+2)] = mat2.elem_vecs(j) - mat1.elem_vecs(j)
         
         np.testing.assert_allclose(res, sol, rtol=1e-10, atol=1e-10)
 

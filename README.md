@@ -126,6 +126,15 @@ For the former ndarray output of `vee` or `vee_adj`, pass `as_array=True`;
 this returns CM coefficients. Use `.vecs()` to obtain ordinary derivatives.
 The single-vector `SO3.hat` and `SE3.hat` APIs are unchanged.
 
+CMTM also stores its motion series exclusively as CM coefficients. Its constructor
+accepts either ordinary derivative arrays or a `CMVector` directly; passing a
+`CMVector` preserves its coefficient storage without a conversion round trip.
+`cmvecs()` exposes that canonical series. `vecs()`, `vecs_flatten()`, and
+`elem_vecs()` reconstruct ordinary values on request; the returned NumPy arrays
+are detached from the coefficient storage and may differ by floating-point
+rounding. Composition, inversion, matrix recovery, and element-class changes
+keep coefficients normalized internally.
+
 `CMVector` stores only CM coefficients. Ordinary derivative arrays returned
 by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
 not change the stored coefficients. NumPy reconstruction uses at least float64
