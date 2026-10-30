@@ -131,6 +131,39 @@ by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
 not change the stored coefficients. NumPy reconstruction uses at least float64
 precision, so the dtype may differ from the original input.
 
+For NumPy inputs, `CMVector(values)` creates independent coefficients, whereas
+`set_cmvecs(coefficients)` retains the supplied array and its dtype. Mutating
+that input or the array returned by `.cm_vecs()` updates the stored coefficients.
+Read-only inputs remain read-only with `set_cmvecs`. `.cm_vec()` reshapes the
+coefficient array and may copy non-contiguous data.
+
+| NumPy input dtype | `CMVector(values)` coefficients | `set_cmvecs(values)` coefficients | `.vecs()` / `.vec()` |
+| --- | --- | --- | --- |
+| float32 / float64 | float64 | Input dtype | float64 |
+| int32 / int64 | float64 | Input dtype | float64 |
+| complex64 / complex128 | complex128 | Input dtype | complex128 |
+
+`vee` and `vee_adj` preserve floating-point and complex matrix dtypes in their
+coefficient outputs, including `as_array=True` and the compatibility names.
+Integer matrices are promoted to a floating-point dtype (int32/int64 to float64)
+so subdiagonal averages retain fractional values. Recovered coefficients are
+independent of the input matrix. JAX inputs follow JAX dtype promotion and
+immutable array semantics instead of NumPy's float64 promotion.
+
+Series can be truncated, added, subtracted, or negated directly in CM form:
+
+```python
+short = series.truncate(3)  # Keep three rows: derivatives 0 through 2
+combined = short + recovered.truncate(3)
+difference = short - recovered.truncate(3)
+negative = -short
+```
+
+Addition and subtraction require equal row counts and dimensions; only batch
+axes broadcast. Mixed one-dimensional and column series return column layouts.
+`truncate(order)` accepts integer row counts from zero to the source row count
+and shares coefficient storage. Arithmetic creates new coefficient arrays.
+
 ## Running Tests
 
 Run the test suite with uv:

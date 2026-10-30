@@ -1,4 +1,5 @@
 import math
+import operator
 from typing import Union
 
 import numpy as np
@@ -76,6 +77,49 @@ class CMVector:
 
     def cm_vec(self) -> Union[np.ndarray, jnp.ndarray]:
         return flatten_last2(self._cm_vecs)
+
+    def _cm_result(self, coefficients, *, squeeze_vec):
+        result = type(self).set_cmvecs(coefficients)
+        result._squeeze_vec = squeeze_vec
+        return result
+
+    def truncate(self, order: int) -> 'CMVector':
+        """Return the first order coefficient rows, sharing array storage.
+
+        order is a row count (0 through self._n), not a derivative index.
+        One-dimensional series keep their original output layout.
+        """
+        if isinstance(order, (bool, np.bool_)):
+            raise TypeError("order must be an integer row count")
+        order = operator.index(order)
+        if not 0 <= order <= self._n:
+            raise ValueError(f"order must be between 0 and {self._n}, got {order}")
+        return self._cm_result(
+            self._cm_vecs[..., :order, :], squeeze_vec=self._squeeze_vec
+        )
+
+    def _combine(self, other, operation):
+        if not isinstance(other, CMVector):
+            return NotImplemented
+        if self._n != other._n or self._dim != other._dim:
+            raise ValueError("CMVector orders and dimensions must match")
+        # Only batch axes broadcast; order and dimension axes must match exactly.
+        coefficients = operation(self._cm_vecs, other._cm_vecs)
+        return self._cm_result(
+            coefficients, squeeze_vec=self._squeeze_vec and other._squeeze_vec
+        )
+
+    def __add__(self, other):
+        """Add matching series, broadcasting their batch axes."""
+        return self._combine(other, operator.add)
+
+    def __sub__(self, other):
+        """Subtract matching series, broadcasting their batch axes."""
+        return self._combine(other, operator.sub)
+
+    def __neg__(self):
+        """Negate coefficients without reconstructing ordinary derivatives."""
+        return self._cm_result(-self._cm_vecs, squeeze_vec=self._squeeze_vec)
 
     def __repr__(self):
         return f"CMVector(n={self._n}, dim={self._dim}, len={self._len})\n{self.cm_vecs()}"

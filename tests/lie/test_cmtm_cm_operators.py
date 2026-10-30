@@ -77,3 +77,53 @@ def test_cm_compatibility_names():
     for hat, alias in [("hat", "vee_cm"), ("hat_adj", "vee_cm_adj")]:
         recovered = getattr(mr.CMTM, alias)(mr.SE3, getattr(mr.CMTM, hat)(mr.SE3, value))
         np.testing.assert_allclose(recovered.vecs(), value.vecs())
+
+
+@pytest.mark.parametrize("group", [mr.SO3, mr.SE3])
+@pytest.mark.parametrize("adjoint", [False, True])
+@pytest.mark.parametrize("input_dtype, result_dtype", [
+    (np.float32, np.float32),
+    (np.float64, np.float64),
+    (np.int32, np.float64),
+    (np.int64, np.float64),
+    (np.complex64, np.complex64),
+    (np.complex128, np.complex128),
+])
+def test_vee_return_dtype_averaging_and_ownership(group, adjoint, input_dtype, result_dtype):
+    hat = group.hat_adj if adjoint else group.hat
+    size = group.mat_adj_size() if adjoint else group.mat_size()
+    canonical = mr.CMTM.vee_adj if adjoint else mr.CMTM.vee
+    alias = mr.CMTM.vee_cm_adj if adjoint else mr.CMTM.vee_cm
+    order = 4
+    coefficients = np.arange(1, order * group.dof() + 1).reshape(order, group.dof()).astype(input_dtype)
+    if np.issubdtype(input_dtype, np.complexfloating):
+        coefficients += 1j * coefficients
+    matrix = np.zeros((2, order * size, order * size), dtype=input_dtype)
+    expected = np.empty((2, order, group.dof()), dtype=result_dtype)
+    # Deliberately distinct blocks on each subdiagonal verify averaging;
+    # integer inputs must preserve fractional averages such as 1.5.
+    for offset in range(order):
+        expected[:, offset, :] = coefficients[offset] + (order - offset - 1) / 2
+        for col in range(order - offset):
+            row = col + offset
+            matrix[:, row*size:(row+1)*size, col*size:(col+1)*size] = hat(coefficients[offset] + col)
+    snapshot = matrix.copy()
+    recovered = canonical(group, matrix)
+    compatibility = alias(group, matrix)
+    array = canonical(group, matrix, as_array=True)
+    assert isinstance(recovered, mr.CMVector)
+    assert isinstance(compatibility, mr.CMVector)
+    assert isinstance(array, np.ndarray)
+    for output in (recovered.cm_vecs(), compatibility.cm_vecs(), array):
+        assert output.dtype == np.dtype(result_dtype)
+        np.testing.assert_allclose(output, expected)
+        assert not np.shares_memory(output, matrix)
+    factors = np.array([1, 1, 2, 6])[:, None]
+    np.testing.assert_allclose(recovered.vecs(), expected * factors)
+
+    recovered.cm_vecs()[...] = 0
+    array[...] = -1
+    np.testing.assert_array_equal(matrix, snapshot)
+    np.testing.assert_array_equal(compatibility.cm_vecs(), expected)
+    matrix[...] = 0
+    np.testing.assert_array_equal(compatibility.cm_vecs(), expected)
