@@ -102,6 +102,35 @@ ys = spl(ts)
 print(ys)
 ```
 
+### CMTM coefficient operators
+
+CMTM block operators use `CMVector`, whose coefficients are ordinary
+kth derivatives divided by `k!`:
+
+```python
+series = mr.CMVector(np.ones((5, 6)))  # Ordinary derivatives as input
+matrix = mr.CMTM.hat(mr.SE3, series)
+recovered = mr.CMTM.vee(mr.SE3, matrix)  # Returns CMVector
+ordinary = recovered.vecs()
+coefficients = recovered.cm_vecs()
+```
+
+Use `CMVector.set_cmvecs(coefficients)` when the input is already normalized.
+`hat_adj`, `hat_commute`, and `hat_commute_adj` follow the same input convention;
+`vee_adj` also returns a `CMVector`.
+
+The older `hat_cm`, `hat_cm_adj`, `hat_cm_commute`, `hat_cm_commute_adj`,
+`vee_cm`, and `vee_cm_adj` names remain compatibility wrappers. Legacy ndarray
+inputs to the hat operators are still used directly, without factorial scaling.
+For the former ndarray output of `vee` or `vee_adj`, pass `as_array=True`;
+this returns CM coefficients. Use `.vecs()` to obtain ordinary derivatives.
+The single-vector `SO3.hat` and `SE3.hat` APIs are unchanged.
+
+`CMVector` stores only CM coefficients. Ordinary derivative arrays returned
+by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
+not change the stored coefficients. NumPy reconstruction uses at least float64
+precision, so the dtype may differ from the original input.
+
 ## Running Tests
 
 Run the test suite with uv:

@@ -259,7 +259,7 @@ def test_cmtm_se3_vee():
         vec = np.random.rand(i,6)
 
         mat = mr.CMTM.hat(mr.SE3, vec)
-        res = mr.CMTM.vee(mr.SE3, mat)
+        res = mr.CMTM.vee(mr.SE3, mat, as_array=True)
 
         np.testing.assert_allclose(res, vec) 
 
@@ -268,7 +268,7 @@ def test_cmtm_se3_vee_adj():
         vec = np.random.rand(i,6)
 
         mat = mr.CMTM.hat_adj(mr.SE3, vec)
-        res = mr.CMTM.vee_adj(mr.SE3, mat)
+        res = mr.CMTM.vee_adj(mr.SE3, mat, as_array=True)
 
         np.testing.assert_allclose(res, vec) 
 
