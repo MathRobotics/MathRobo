@@ -6,8 +6,8 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 cd "$root" || exit 1
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  echo "Usage: $0 [3.10 3.11 ...]"
-  echo "Default: 3.10 3.11 3.12 3.13 3.14"
+  echo "Usage: $0 [3.9 3.10 ...]"
+  echo "Default: 3.9 3.10 3.11 3.12 3.13 3.14"
   echo "Uses uv.lock; uv may download Python and dependencies. No publishing."
   exit 0
 fi
@@ -18,7 +18,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  set -- 3.10 3.11 3.12 3.13 3.14
+  set -- 3.9 3.10 3.11 3.12 3.13 3.14
 fi
 for version in "$@"; do
   if [[ ! "$version" =~ ^3\.[0-9]+(\.[0-9]+)?$ ]]; then
