@@ -108,7 +108,7 @@ def test_cmtm_se3_getter():
     
     np.testing.assert_array_equal(res.elem_mat(), se3.mat())
     for i in range(test_order):
-        np.testing.assert_array_equal(res.elem_vecs(i), vec[i])
+        np.testing.assert_allclose(res.elem_vecs(i), vec[i], rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_set_mat():
     se3 = mr.SE3.rand() 
@@ -128,16 +128,16 @@ def test_cmtm_se3_vecs():
     vec = np.random.rand(test_order,6)
 
     res = mr.CMTM[mr.SE3](se3, vec)
-    np.testing.assert_array_equal(res.vecs(), vec)
-    np.testing.assert_array_equal(res.vecs(3), vec[:2])
+    np.testing.assert_allclose(res.vecs(), vec, rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.vecs(3), vec[:2], rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_vecs_flatten():
     se3 = mr.SE3.rand()
     vec = np.random.rand(test_order,6)
 
     res = mr.CMTM[mr.SE3](se3, vec)
-    np.testing.assert_array_equal(res.vecs_flatten(), vec.flatten())
-    np.testing.assert_array_equal(res.vecs_flatten(3), vec[:2].flatten())
+    np.testing.assert_allclose(res.vecs_flatten(), vec.flatten(), rtol=1e-15, atol=1e-15)
+    np.testing.assert_allclose(res.vecs_flatten(3), vec[:2].flatten(), rtol=1e-15, atol=1e-15)
 
 def test_cmtm_se3_inv():
     for i in range(4):
@@ -259,7 +259,7 @@ def test_cmtm_se3_vee():
         vec = np.random.rand(i,6)
 
         mat = mr.CMTM.hat(mr.SE3, vec)
-        res = mr.CMTM.vee(mr.SE3, mat)
+        res = mr.CMTM.vee(mr.SE3, mat, as_array=True)
 
         np.testing.assert_allclose(res, vec) 
 
@@ -268,7 +268,7 @@ def test_cmtm_se3_vee_adj():
         vec = np.random.rand(i,6)
 
         mat = mr.CMTM.hat_adj(mr.SE3, vec)
-        res = mr.CMTM.vee_adj(mr.SE3, mat)
+        res = mr.CMTM.vee_adj(mr.SE3, mat, as_array=True)
 
         np.testing.assert_allclose(res, vec) 
 
@@ -297,7 +297,7 @@ def test_cmtm_se3_sub_vec():
         sol[0:6] = mr.SE3.sub_tan_vec(mat1._mat, mat2._mat, "bframe")
         if i > 0: 
             for j in range(i):
-                sol[6*(j+1):6*(j+2)] = mat2._vecs[j] - mat1._vecs[j]
+                sol[6*(j+1):6*(j+2)] = mat2.elem_vecs(j) - mat1.elem_vecs(j)
         
         np.testing.assert_allclose(res, sol, rtol=1e-10, atol=1e-10)
 

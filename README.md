@@ -4,6 +4,10 @@ Mathrobo is a Python library for robotics-oriented mathematical computation, inc
 
 ## Installation
 
+Python 3.9 or later is required; Python 3.11 or later is recommended.
+On Apple M4 Macs, use Python 3.11+ with NumPy 2.3.1+ to avoid the
+[known Accelerate runtime warnings](https://numpy.org/doc/stable/release/2.3.1-notes.html).
+
 Install the latest release from PyPI:
 
 ```bash
@@ -38,7 +42,7 @@ uv pip install -e .
 ```
 
 ## Examples
-Refer to the examples in the `examples` folder, where you can find Jupyter notebooks and scripts demonstrating various use cases of the library.
+Refer to the examples in the `example` folder, where you can find Jupyter notebooks and scripts demonstrating various use cases of the library.
 
 ## Usage
 
@@ -102,6 +106,77 @@ ys = spl(ts)
 print(ys)
 ```
 
+### CMTM coefficient operators
+
+CMTM block operators use `CMVector`, whose coefficients are ordinary
+kth derivatives divided by `k!`:
+
+```python
+series = mr.CMVector(np.ones((5, 6)))  # Ordinary derivatives as input
+matrix = mr.CMTM.hat(mr.SE3, series)
+recovered = mr.CMTM.vee(mr.SE3, matrix)  # Returns CMVector
+ordinary = recovered.vecs()
+coefficients = recovered.cm_vecs()
+```
+
+Use `CMVector.set_cmvecs(coefficients)` when the input is already normalized.
+`hat_adj`, `hat_commute`, and `hat_commute_adj` follow the same input convention;
+`vee_adj` also returns a `CMVector`.
+
+The older `hat_cm`, `hat_cm_adj`, `hat_cm_commute`, `hat_cm_commute_adj`,
+`vee_cm`, and `vee_cm_adj` names remain compatibility wrappers. Legacy ndarray
+inputs to the hat operators are still used directly, without factorial scaling.
+For the former ndarray output of `vee` or `vee_adj`, pass `as_array=True`;
+this returns CM coefficients. Use `.vecs()` to obtain ordinary derivatives.
+The single-vector `SO3.hat` and `SE3.hat` APIs are unchanged.
+
+CMTM also stores its motion series exclusively as CM coefficients. Its constructor
+accepts either ordinary derivative arrays or a `CMVector` directly; passing a
+`CMVector` preserves its coefficient storage without a conversion round trip.
+`cmvecs()` exposes that canonical series. `vecs()`, `vecs_flatten()`, and
+`elem_vecs()` reconstruct ordinary values on request; the returned NumPy arrays
+are detached from the coefficient storage and may differ by floating-point
+rounding. Composition, inversion, matrix recovery, and element-class changes
+keep coefficients normalized internally.
+
+`CMVector` stores only CM coefficients. Ordinary derivative arrays returned
+by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
+not change the stored coefficients. NumPy reconstruction uses at least float64
+precision, so the dtype may differ from the original input.
+
+For NumPy inputs, `CMVector(values)` creates independent coefficients, whereas
+`set_cmvecs(coefficients)` retains the supplied array and its dtype. Mutating
+that input or the array returned by `.cm_vecs()` updates the stored coefficients.
+Read-only inputs remain read-only with `set_cmvecs`. `.cm_vec()` reshapes the
+coefficient array and may copy non-contiguous data.
+
+| NumPy input dtype | `CMVector(values)` coefficients | `set_cmvecs(values)` coefficients | `.vecs()` / `.vec()` |
+| --- | --- | --- | --- |
+| float32 / float64 | float64 | Input dtype | float64 |
+| int32 / int64 | float64 | Input dtype | float64 |
+| complex64 / complex128 | complex128 | Input dtype | complex128 |
+
+`vee` and `vee_adj` preserve floating-point and complex matrix dtypes in their
+coefficient outputs, including `as_array=True` and the compatibility names.
+Integer matrices are promoted to a floating-point dtype (int32/int64 to float64)
+so subdiagonal averages retain fractional values. Recovered coefficients are
+independent of the input matrix. JAX inputs follow JAX dtype promotion and
+immutable array semantics instead of NumPy's float64 promotion.
+
+Series can be truncated, added, subtracted, or negated directly in CM form:
+
+```python
+short = series.truncate(3)  # Keep three rows: derivatives 0 through 2
+combined = short + recovered.truncate(3)
+difference = short - recovered.truncate(3)
+negative = -short
+```
+
+Addition and subtraction require equal row counts and dimensions; only batch
+axes broadcast. Mixed one-dimensional and column series return column layouts.
+`truncate(order)` accepts integer row counts from zero to the source row count
+and shares coefficient storage. Arithmetic creates new coefficient arrays.
+
 ## Running Tests
 
 Run the test suite with uv:
@@ -110,7 +185,26 @@ Run the test suite with uv:
 uv run --extra dev pytest
 ```
 
+Test Python 3.9–3.14 with separate environments (requires Bash and uv):
+
+```bash
+./scripts/test-python.sh
+./scripts/test-python.sh 3.9 3.13  # Selected versions only
+```
+
+The script uses `uv.lock` and may download Python and dependencies. It continues
+after failures, prints a summary, and exits nonzero if any version fails.
+
 ## Changelog
+
+### 0.0.6
+
+- CMTM now stores and computes motion series in CM coefficients, reducing conversions to ordinary derivatives.
+- **Compatibility:** `CMTM.vee()` and `vee_adj()` now return `CMVector`. Use `.vecs()` for ordinary derivatives or `.cm_vecs()` for CM coefficients; `as_array=True` returns CM coefficients directly.
+- **Compatibility:** `vecs()` reconstructs ordinary values without sharing coefficient storage. NumPy results use at least float64 precision (complex128 for complex inputs).
+- Added `CMVector` addition, subtraction, negation, and `truncate(order)` to retain the first `order` coefficient rows.
+
+### Earlier changes
 
 - Removed SymPy as a runtime dependency. Mathrobo now supports the NumPy and JAX code paths only, and `uv.lock` no longer includes SymPy or mpmath.
 

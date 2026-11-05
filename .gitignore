@@ -2,3 +2,5 @@ __pycache__/
 
 /mrenv
 .python-version
+/RELEASING.md
+/.venv-py*/

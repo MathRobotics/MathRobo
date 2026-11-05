@@ -150,23 +150,22 @@ def test_so3_jac_lie_wrt_scaler():
     np.testing.assert_allclose(res, dr, 1e-3)
     
 def test_so3_jac_lie_wrt_scaler_integ():
-    v = np.random.rand(3)
-    dv = np.random.rand(3)
-    a = np.random.rand()
-    eps = 1e-8
+    rng = np.random.default_rng(0)
+    v = rng.random(3)
+    dv = rng.random(3)
+    eps = 1e-4
     
     def integrad(s):
         return mr.jac_lie_wrt_scaler(mr.SO3, v, s, dv)
     
-    res, _ = integrate.quad_vec(integrad, 0, a)
-    
-    r = mr.SO3.exp_integ(v, a)
-    v_ = v + dv*eps
-    r_ = mr.SO3.exp_integ(v_, a)
-    
-    dr = (r_ - r) / eps
-    
-    np.testing.assert_allclose(res, dr, 1e-3)
+    # Include a small interval where one-sided differences lose precision.
+    for a in (0.01, 0.03, 0.3, 1.0):
+        res, _ = integrate.quad_vec(integrad, 0, a)
+        r_plus = mr.SO3.exp_integ(v + dv * eps, a)
+        r_minus = mr.SO3.exp_integ(v - dv * eps, a)
+        dr = (r_plus - r_minus) / (2 * eps)
+
+        np.testing.assert_allclose(res, dr, rtol=1e-6, atol=1e-10)
 
 def test_so3_mat_var_x_arb_vec():
     rot = mr.SO3.rand()
