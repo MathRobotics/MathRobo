@@ -42,7 +42,7 @@ uv pip install -e .
 ```
 
 ## Examples
-Refer to the examples in the `examples` folder, where you can find Jupyter notebooks and scripts demonstrating various use cases of the library.
+Refer to the examples in the `example` folder, where you can find Jupyter notebooks and scripts demonstrating various use cases of the library.
 
 ## Usage
 
@@ -197,7 +197,7 @@ after failures, prints a summary, and exits nonzero if any version fails.
 
 ## Changelog
 
-### Unreleased
+### 0.0.6
 
 - CMTM now stores and computes motion series in CM coefficients, reducing conversions to ordinary derivatives.
 - **Compatibility:** `CMTM.vee()` and `vee_adj()` now return `CMVector`. Use `.vecs()` for ordinary derivatives or `.cm_vecs()` for CM coefficients; `as_array=True` returns CM coefficients directly.
