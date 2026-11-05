@@ -4,6 +4,10 @@ Mathrobo is a Python library for robotics-oriented mathematical computation, inc
 
 ## Installation
 
+Python 3.10 or later is required; Python 3.11 or later is recommended.
+On Apple M4 Macs, use Python 3.11+ with NumPy 2.3.1+ to avoid the
+[known Accelerate runtime warnings](https://numpy.org/doc/stable/release/2.3.1-notes.html).
+
 Install the latest release from PyPI:
 
 ```bash
@@ -181,7 +185,27 @@ Run the test suite with uv:
 uv run --extra dev pytest
 ```
 
+Test Python 3.10–3.14 with separate environments (requires Bash and uv):
+
+```bash
+./scripts/test-python.sh
+./scripts/test-python.sh 3.10 3.13  # Selected versions only
+```
+
+The script uses `uv.lock` and may download Python and dependencies. It continues
+after failures, prints a summary, and exits nonzero if any version fails.
+
 ## Changelog
+
+### Unreleased
+
+- Python 3.10 or later is now required; Python 3.9 is no longer supported.
+- CMTM now stores and computes motion series in CM coefficients, reducing conversions to ordinary derivatives.
+- **Compatibility:** `CMTM.vee()` and `vee_adj()` now return `CMVector`. Use `.vecs()` for ordinary derivatives or `.cm_vecs()` for CM coefficients; `as_array=True` returns CM coefficients directly.
+- **Compatibility:** `vecs()` reconstructs ordinary values without sharing coefficient storage. NumPy results use at least float64 precision (complex128 for complex inputs).
+- Added `CMVector` addition, subtraction, negation, and `truncate(order)` to retain the first `order` coefficient rows.
+
+### Earlier changes
 
 - Removed SymPy as a runtime dependency. Mathrobo now supports the NumPy and JAX code paths only, and `uv.lock` no longer includes SymPy or mpmath.
 
