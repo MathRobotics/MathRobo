@@ -1,3 +1,4 @@
+from .._storage import snapshot, same_shape, readonly_view
 import math
 import operator
 from typing import Union
@@ -19,7 +20,7 @@ class CMVector:
     """A derivative series stored as CM coefficients, ``vecs[k] / k!``.
 
     ``CMVector(vecs)`` accepts ordinary derivatives. ``set_cmvecs`` accepts
-    normalized coefficients directly, retaining the supplied array.
+    normalized coefficients directly, capturing an independent snapshot.
     ``vecs()`` and ``vec()`` reconstruct ordinary derivatives on each call.
     These reconstructed arrays do not share storage with the coefficients.
     NumPy conversions use at least float64 precision, as in FactorialVector;
@@ -29,13 +30,13 @@ class CMVector:
 
     def __init__(self, vecs: Union[np.ndarray, jnp.ndarray]):
         self._set_cm_vecs(vecs, squeeze_vec=vecs.ndim == 1)
-        self._cm_vecs = self._cm_vecs * self._scales(inverse=True)
+        self._cm_vecs = snapshot(self._cm_vecs * self._scales(inverse=True))
 
     def _set_cm_vecs(self, cm_vecs, squeeze_vec=False):
         self._squeeze_vec = squeeze_vec
         if cm_vecs.ndim == 1:
             cm_vecs = cm_vecs[..., None]
-        self._cm_vecs = cm_vecs
+        self._cm_vecs = snapshot(cm_vecs)
         self._n, self._dim = cm_vecs.shape[-2:]
         self._len = self._n * self._dim
 
@@ -64,12 +65,24 @@ class CMVector:
         obj._set_cm_vecs(cm_vecs)
         return obj
 
+    def update_vecs(self, vecs):
+        """Replace ordinary derivatives without changing shape or layout."""
+        replacement = CMVector(vecs)
+        if replacement._squeeze_vec != self._squeeze_vec:
+            raise ValueError("Updates must preserve series layout")
+        self._cm_vecs = same_shape(replacement._cm_vecs, self._cm_vecs)
+
+    def update_cmvecs(self, coefficients):
+        """Replace normalized coefficients in the cm_vecs() layout."""
+        values = same_shape(coefficients, self.cm_vecs())
+        self._cm_vecs = values[..., None] if self._squeeze_vec else values
+
     def vecs(self) -> Union[np.ndarray, jnp.ndarray]:
         vecs = self._cm_vecs * self._scales()
         return vecs[..., 0] if self._squeeze_vec else vecs
 
     def cm_vecs(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._cm_vecs[..., 0] if self._squeeze_vec else self._cm_vecs
+        return readonly_view(self._cm_vecs[..., 0] if self._squeeze_vec else self._cm_vecs)
 
     def vec(self) -> Union[np.ndarray, jnp.ndarray]:
         vecs = self.vecs()

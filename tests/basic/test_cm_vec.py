@@ -23,7 +23,8 @@ def test_derivative_and_coefficient_conventions(order, batch):
         np.testing.assert_allclose(obj.cm_vec(), expected_cm.reshape(batch + (order * 6,)))
         np.testing.assert_allclose(obj.vec(), vecs.reshape(batch + (order * 6,)))
     # Direct construction must retain coefficients without a lossy round trip.
-    assert direct.cm_vecs() is expected_cm
+    np.testing.assert_array_equal(direct.cm_vecs(), expected_cm)
+    assert not np.shares_memory(direct.cm_vecs(), expected_cm)
 
 
 def test_one_dimensional_series_layouts():
@@ -201,7 +202,7 @@ def test_numpy_input_and_ordinary_output_ownership(direct, shape, strided):
     coefficients = series.cm_vecs().copy()
     expected = series.vecs().copy()
 
-    assert np.shares_memory(series.cm_vecs(), source) == direct
+    assert not np.shares_memory(series.cm_vecs(), source)
     # Ordinary outputs are independent snapshots, including flattened outputs.
     for name in ("vecs", "vec"):
         output = getattr(series, name)()
@@ -213,10 +214,7 @@ def test_numpy_input_and_ordinary_output_ownership(direct, shape, strided):
         np.testing.assert_array_equal(series.vecs(), expected)
 
     source[...] = 0
-    if direct:
-        np.testing.assert_array_equal(series.cm_vecs(), np.zeros_like(coefficients))
-    else:
-        np.testing.assert_array_equal(series.cm_vecs(), coefficients)
+    np.testing.assert_array_equal(series.cm_vecs(), coefficients)
 
 
 @pytest.mark.parametrize("name", ["cm_vecs", "cm_vec"])
@@ -224,8 +222,12 @@ def test_coefficient_accessors_expose_contiguous_storage(name):
     source = np.ones((5, 6), dtype=np.float32)
     series = CMVector.set_cmvecs(source)
     accessor = getattr(series, name)()
-    accessor[...] = 2
-    np.testing.assert_array_equal(source, np.full_like(source, 2))
+    with pytest.raises(ValueError):
+        accessor[...] = 2
+    with pytest.raises(ValueError):
+        accessor.setflags(write=True)
+    series.update_cmvecs(np.full_like(source, 2))
+    np.testing.assert_array_equal(source, np.ones_like(source))
     factors = np.array([1, 1, 2, 6, 24])[:, None]
     np.testing.assert_array_equal(series.vecs(), np.broadcast_to(2 * factors, source.shape))
 
@@ -239,7 +241,9 @@ def test_read_only_coefficients_can_be_reconstructed():
     with pytest.raises(ValueError):
         direct.cm_vecs()[0, 0] = 2
     ordinary = CMVector(source)
-    ordinary.cm_vecs()[0, 0] = 3
+    replacement = ordinary.cm_vecs().copy()
+    replacement[0, 0] = 3
+    ordinary.update_cmvecs(replacement)
     assert source[0, 0] == 1
 
 

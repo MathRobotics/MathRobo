@@ -121,7 +121,7 @@ def test_vee_return_dtype_averaging_and_ownership(group, adjoint, input_dtype, r
     factors = np.array([1, 1, 2, 6])[:, None]
     np.testing.assert_allclose(recovered.vecs(), expected * factors)
 
-    recovered.cm_vecs()[...] = 0
+    recovered.update_cmvecs(np.zeros_like(recovered.cm_vecs()))
     array[...] = -1
     np.testing.assert_array_equal(matrix, snapshot)
     np.testing.assert_array_equal(compatibility.cm_vecs(), expected)

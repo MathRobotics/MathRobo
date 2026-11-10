@@ -1,3 +1,4 @@
+from copy import copy
 from typing import TypeVar, Generic
 import numpy as np
 import jax.numpy as jnp
@@ -18,8 +19,8 @@ class CMTM(Generic[T]):
             elem_vecs = np.zeros(elem_mat.mat().shape[:-2] + (0, elem_mat.dof()))
         elif not isinstance(elem_vecs, cmvec.CMVector) and elem_vecs.ndim == 1 and elem_vecs.size == 0:
             elem_vecs = np.zeros(elem_mat.mat().shape[:-2] + (0, elem_mat.dof()))
-        self._mat = elem_mat
-        self._cmvecs = elem_vecs if isinstance(elem_vecs, cmvec.CMVector) else cmvec.CMVector(elem_vecs)
+        self._mat = copy(elem_mat)
+        self._cmvecs = copy(elem_vecs) if isinstance(elem_vecs, cmvec.CMVector) else cmvec.CMVector(elem_vecs)
         self._cm_vecs = self._cmvecs.cm_vecs()
 
         elem_cls = type(elem_mat)
@@ -66,6 +67,71 @@ class CMTM(Generic[T]):
         self._mat_inv_adj_matrix_cache_numpy = {}
         self._tangent_matrix_cache_numpy = {}
         self._tangent_cm_matrix_cache_numpy = {}
+
+    def _invalidate_caches(self):
+        for name, cache in self.__dict__.items():
+            if name.endswith('_cache_numpy'):
+                cache.clear()
+
+    def update_pose(self, pose):
+        """Capture a new pose and invalidate derived values."""
+        if type(pose) is not type(self._mat) or pose.lib != self._mat.lib:
+            raise TypeError("Pose type and backend must match")
+        if pose.mat().shape != self._mat.mat().shape:
+            raise ValueError("Updates must preserve pose shape")
+        self._mat = copy(pose)
+        self._invalidate_caches()
+
+    def update_vecs(self, values):
+        """Replace ordinary derivatives, preserving order and batch shape."""
+        replacement = copy(self._cmvecs)
+        replacement.update_vecs(values)
+        self._replace_series(replacement)
+
+    def update_cmvecs(self, values):
+        """Replace normalized coefficient arrays, preserving shape."""
+        replacement = copy(self._cmvecs)
+        replacement.update_cmvecs(values)
+        self._replace_series(replacement)
+
+    def _replace_series(self, series):
+        self._cmvecs = series
+        self._cm_vecs = series.cm_vecs()
+        self._invalidate_caches()
+
+    def _series_dtype_numpy(self, pose_dtype):
+        dtype = np.result_type(pose_dtype, self._cm_vecs.dtype)
+        return dtype if np.issubdtype(dtype, np.inexact) else np.dtype(float)
+
+    def _matrix_jax(self, output_order, *, adj=False, inverse=False):
+        """Static-order recurrence without storing tracers on the object."""
+        name = 'mat_inv' if inverse else 'mat'
+        if adj:
+            name += '_adj'
+        base = jnp.asarray(getattr(self._mat, name)())
+        dtype = jnp.result_type(base.dtype, self._cm_vecs.dtype, jnp.float32)
+        base = base.astype(dtype)
+        shape = np.broadcast_shapes(base.shape[:-2], self._cm_vecs.shape[:-2])
+        size = base.shape[-1]
+        if output_order == 0:
+            return jnp.zeros(shape + (0, 0), dtype=dtype)
+        blocks = [jnp.broadcast_to(base, shape + (size, size))]
+        hat = self._mat.hat_adj if adj else self._mat.hat
+        hats = [hat(jnp.asarray(self._cm_vecs[..., i, :], dtype=dtype), LIB='jax')
+                for i in range(output_order - 1)]
+        for k in range(1, output_order):
+            acc = jnp.zeros_like(blocks[0])
+            for i in range(k):
+                if inverse:
+                    acc = acc - hats[i] @ blocks[k-i-1]
+                else:
+                    acc = acc + blocks[k-i-1] @ hats[i]
+            blocks.append(acc / k)
+        zero = jnp.zeros_like(blocks[0])
+        return jnp.concatenate([
+            jnp.concatenate([blocks[i-j] if i >= j else zero
+                             for j in range(output_order)], axis=-1)
+            for i in range(output_order)], axis=-2)
 
     def _cmvecs_obj(self) -> cmvec.CMVector:
         return self._cmvecs
@@ -144,7 +210,7 @@ class CMTM(Generic[T]):
             return cached
 
         mat0 = self._mat.mat()
-        dtype = mat0.dtype
+        dtype = self._series_dtype_numpy(mat0.dtype)
         mat_size = self._mat_size
         batch_shape = np.broadcast_shapes(mat0.shape[:-2], self._cm_vecs.shape[:-2])
         blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
@@ -175,7 +241,7 @@ class CMTM(Generic[T]):
             return cached
 
         mat0 = self._mat.mat_adj()
-        dtype = mat0.dtype
+        dtype = self._series_dtype_numpy(mat0.dtype)
         mat_size = self._mat_adj_size
         batch_shape = np.broadcast_shapes(mat0.shape[:-2], self._cm_vecs.shape[:-2])
         blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
@@ -206,7 +272,7 @@ class CMTM(Generic[T]):
             return cached
 
         mat0 = self._mat.mat_inv()
-        dtype = mat0.dtype
+        dtype = self._series_dtype_numpy(mat0.dtype)
         mat_size = self._mat_size
         batch_shape = np.broadcast_shapes(mat0.shape[:-2], self._cm_vecs.shape[:-2])
         blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
@@ -237,7 +303,7 @@ class CMTM(Generic[T]):
             return cached
 
         mat0 = self._mat.mat_inv_adj()
-        dtype = mat0.dtype
+        dtype = self._series_dtype_numpy(mat0.dtype)
         mat_size = self._mat_adj_size
         batch_shape = np.broadcast_shapes(mat0.shape[:-2], self._cm_vecs.shape[:-2])
         blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
@@ -423,7 +489,7 @@ class CMTM(Generic[T]):
                 return cached
 
         if dtype is None:
-            dtype = self._mat.mat_adj().dtype
+            dtype = self._series_dtype_numpy(self._mat.mat_adj().dtype)
         mat_size = self._mat_adj_size
         batch_shape = np.broadcast_shapes(self._mat.mat_adj().shape[:-2], self._cm_vecs.shape[:-2])
         tangent = np.zeros(batch_shape + (output_order, output_order, mat_size, mat_size), dtype=dtype)
@@ -459,7 +525,7 @@ class CMTM(Generic[T]):
                 return cached
 
         if dtype is None:
-            dtype = self._mat.mat_adj().dtype
+            dtype = self._series_dtype_numpy(self._mat.mat_adj().dtype)
         mat_size = self._mat_adj_size
         batch_shape = np.broadcast_shapes(self._mat.mat_adj().shape[:-2], self._cm_vecs.shape[:-2])
         tangent_cm = np.zeros(batch_shape + (output_order, output_order, mat_size, mat_size), dtype=dtype)
@@ -488,7 +554,7 @@ class CMTM(Generic[T]):
         return tangent_cm
 
     def _tangent_tables_numpy(self, output_order: int) -> tuple[np.ndarray, np.ndarray]:
-        dtype = self._mat.mat_adj().dtype
+        dtype = self._series_dtype_numpy(self._mat.mat_adj().dtype)
         hats = self._hat_adj_series_numpy(output_order, dtype)
         tangent = self._tangent_table_numpy(output_order, hats=hats, dtype=dtype)
         tangent_cm = self._tangent_cm_table_numpy(output_order, hats=hats, dtype=dtype)
@@ -598,32 +664,7 @@ class CMTM(Generic[T]):
         
     def mat(self, output_order = None):
         if self._lib == 'jax':
-            P      = self.__check_output_order(output_order)
-            msize  = self._mat_size
-            dtype  = self._cm_vecs[0].dtype
-
-            # Ms[k] を格納するバッファ
-            Ms = jnp.zeros((P, msize, msize), dtype).at[0].set(self._mat.mat())
-
-            def outer(k, Ms):                             # k = 1 .. P-1
-                def inner(i, acc):
-                    term = Ms[k - i - 1] @ self._mat.hat(self._cm_vecs[i], LIB=self._lib)
-                    return acc + term
-                acc0 = jnp.zeros((msize, msize), dtype)
-                tmp  = jax.lax.fori_loop(0, k, inner, acc0)
-                return Ms.at[k].set(tmp / k)
-
-            Ms = jax.lax.fori_loop(1, P, outer, Ms)       # 全 M_k 完成
-
-            # ---- ブロック行列化（以前と同じ） ----
-            idx   = jnp.arange(P)
-            diff  = idx[:, None] - idx[None, :]
-            mask  = diff >= 0
-            blocks     = Ms[jnp.clip(diff, 0)]            # (P,P,m,m)
-            zero_block = jnp.zeros_like(Ms[0])
-            blocks     = jnp.where(mask[..., None, None], blocks, zero_block)
-            big_mat = blocks.transpose(0, 2, 1, 3).reshape(P*msize, P*msize)
-            return big_mat  
+            return self._matrix_jax(self.__check_output_order(output_order))
         elif self._lib == 'numpy':
             output_order = self.__check_output_order(output_order)
             batch_shape = np.broadcast_shapes(self._mat.mat().shape[:-2], self._cm_vecs.shape[:-2])
@@ -649,6 +690,8 @@ class CMTM(Generic[T]):
         
     def mat_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
+        if self._lib == 'jax':
+            return self._matrix_jax(output_order, adj=True)
         batch_shape = np.broadcast_shapes(self._mat.mat_adj().shape[:-2], self._cm_vecs.shape[:-2])
         if len(batch_shape) == 0:
             cached = self._mat_adj_matrix_cache_numpy.get(output_order)
@@ -711,7 +754,7 @@ class CMTM(Generic[T]):
         return self._cmvecs.truncate(output_order - 1).vecs()
     
     def cmvecs(self):
-        return self._cmvecs_obj()
+        return copy(self._cmvecs_obj())
     
     def vecs_flatten(self, output_order = None):
         output_order = self.__check_output_order(output_order)
@@ -743,6 +786,8 @@ class CMTM(Generic[T]):
     
     def mat_inv(self, output_order = None):
         output_order = self.__check_output_order(output_order)
+        if self._lib == 'jax':
+            return self._matrix_jax(output_order, inverse=True)
         batch_shape = np.broadcast_shapes(self._mat.mat_inv().shape[:-2], self._cm_vecs.shape[:-2])
         if len(batch_shape) == 0:
             cached = self._mat_inv_matrix_cache_numpy.get(output_order)
@@ -766,6 +811,8 @@ class CMTM(Generic[T]):
     
     def mat_inv_adj(self, output_order = None):
         output_order = self.__check_output_order(output_order)
+        if self._lib == 'jax':
+            return self._matrix_jax(output_order, adj=True, inverse=True)
         batch_shape = np.broadcast_shapes(self._mat.mat_inv_adj().shape[:-2], self._cm_vecs.shape[:-2])
         if len(batch_shape) == 0:
             cached = self._mat_inv_adj_matrix_cache_numpy.get(output_order)
@@ -781,7 +828,7 @@ class CMTM(Generic[T]):
         """Apply the transformation to vectors or matrices with broadcast batch axes."""
         output_order = self.__check_output_order(output_order)
         if self._lib != 'numpy':
-            return self.mat(output_order) @ rval
+            return self._apply_cached_matrix_numpy(self.mat(output_order), jnp.asarray(rval))
         cached = self._mat_matrix_cache_numpy.get(output_order)
         if cached is not None:
             return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
@@ -794,7 +841,7 @@ class CMTM(Generic[T]):
         """Apply the adjoint transformation to vectors or matrices."""
         output_order = self.__check_output_order(output_order)
         if self._lib != 'numpy':
-            return self.mat_adj(output_order) @ rval
+            return self._apply_cached_matrix_numpy(self.mat_adj(output_order), jnp.asarray(rval))
         cached = self._mat_adj_matrix_cache_numpy.get(output_order)
         if cached is not None:
             return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
@@ -807,7 +854,7 @@ class CMTM(Generic[T]):
         """Apply the inverse transformation to vectors or matrices."""
         output_order = self.__check_output_order(output_order)
         if self._lib != 'numpy':
-            return self.mat_inv(output_order) @ rval
+            return self._apply_cached_matrix_numpy(self.mat_inv(output_order), jnp.asarray(rval))
         cached = self._mat_inv_matrix_cache_numpy.get(output_order)
         if cached is not None:
             return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
@@ -820,7 +867,7 @@ class CMTM(Generic[T]):
         """Apply the inverse adjoint transformation to vectors or matrices."""
         output_order = self.__check_output_order(output_order)
         if self._lib != 'numpy':
-            return self.mat_inv_adj(output_order) @ rval
+            return self._apply_cached_matrix_numpy(self.mat_inv_adj(output_order), jnp.asarray(rval))
         cached = self._mat_inv_adj_matrix_cache_numpy.get(output_order)
         if cached is not None:
             return self._apply_cached_matrix_numpy(cached, np.asarray(rval))
@@ -930,13 +977,13 @@ class CMTM(Generic[T]):
         without factorial scaling). Use .vecs() for ordinary derivatives.
         """
         result = CMTM.__vee_func(T.dof(), T.mat_size(), T.vee, hat_mat)
-        return result.cm_vecs() if as_array else result
+        return result.cm_vecs().copy() if as_array else result
 
     @staticmethod
     def vee_adj(T, hat_mat, *, as_array=False):
         """Adjoint vee returning CMVector; as_array=True returns coefficients."""
         result = CMTM.__vee_func(T.dof(), T.mat_adj_size(), T.vee_adj, hat_mat)
-        return result.cm_vecs() if as_array else result
+        return result.cm_vecs().copy() if as_array else result
 
     @staticmethod
     def vee_cm(T, hat_mat):

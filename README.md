@@ -139,16 +139,53 @@ are detached from the coefficient storage and may differ by floating-point
 rounding. Composition, inversion, matrix recovery, and element-class changes
 keep coefficients normalized internally.
 
+SO3, SE3, and CMVector capture input arrays independently. NumPy internal
+arrays returned by `mat()` (SO3), `rot()`, `pos()`, `cm_vecs()`, and `cm_vec()`
+are read-only. Detached calculated outputs, including SE3/CMTM matrices and
+ordinary derivatives, remain writable without affecting the object.
+
+Use explicit updates (all preserve existing shapes; construct a new object to
+change order or batch dimensions):
+
+```python
+pose.update_pos(new_pos)
+pose.update_rot(new_rot)
+pose.update_pose(new_rot, new_pos)  # validates both before replacing either
+series.update_vecs(new_derivatives)
+series.update_cmvecs(new_coefficients)
+cm.update_pose(pose)
+cm.update_vecs(new_derivatives)
+cm.update_cmvecs(new_coefficients)
+```
+
+SO3 provides `update_rot`. Existing `set_*` methods remain constructors.
+CMTM captures its pose and series; updating their original objects does not
+update CMTM. `cm.cmvecs()` returns an independent wrapper, so update `cm`
+explicitly. Immutable internal storage may be shared, including by `truncate`,
+but updates replace storage and leave earlier snapshots unchanged.
+CMTM updates invalidate all derived caches; repeated reads do not scan inputs.
+For JAX, construct objects inside traced functions; do not update persistent
+Python objects from inside JIT/grad transformations.
+
+Matrix recurrences promote the pose and coefficient dtypes together and use
+floating-point storage when both inputs are integral.
+
+With JAX-backed poses and `LIB="jax"`, `mat`, `mat_adj`, `mat_inv`,
+`mat_inv_adj`, and their `apply_` methods support JIT, batching, and automatic
+differentiation. The series shape and `output_order` must be static during
+tracing. These methods do not retain JAX tracers in NumPy caches; this does not
+imply JIT support for every CMTM API.
+
 `CMVector` stores only CM coefficients. Ordinary derivative arrays returned
 by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
 not change the stored coefficients. NumPy reconstruction uses at least float64
 precision, so the dtype may differ from the original input.
 
-For NumPy inputs, `CMVector(values)` creates independent coefficients, whereas
-`set_cmvecs(coefficients)` retains the supplied array and its dtype. Mutating
-that input or the array returned by `.cm_vecs()` updates the stored coefficients.
-Read-only inputs remain read-only with `set_cmvecs`. `.cm_vec()` reshapes the
-coefficient array and may copy non-contiguous data.
+For NumPy inputs, both constructors capture independent coefficients;
+`set_cmvecs(coefficients)` preserves their dtype without factorial conversion.
+Coefficient accessors are read-only. Use `update_cmvecs` to replace coefficients
+or `update_vecs` to supply ordinary derivatives. Truncated series share immutable
+storage until updated, and updates do not propagate to other objects.
 
 | NumPy input dtype | `CMVector(values)` coefficients | `set_cmvecs(values)` coefficients | `.vecs()` / `.vec()` |
 | --- | --- | --- | --- |
@@ -196,6 +233,12 @@ The script uses `uv.lock` and may download Python and dependencies. It continues
 after failures, prints a summary, and exits nonzero if any version fails.
 
 ## Changelog
+
+### Unreleased
+
+- Fixed CMTM matrix recurrences discarding fractional or complex coefficients when the pose has an incompatible dtype.
+- Breaking: pose/CM coefficient inputs are snapshots; use `update_*` instead of direct array mutation. CMTM updates invalidate caches.
+- Fixed JAX/JIT transformation and inverse-adjoint matrix/apply paths, including batched inputs and differentiation.
 
 ### 0.0.6
 

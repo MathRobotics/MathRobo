@@ -1,3 +1,4 @@
+from .._storage import snapshot, same_shape, readonly_view
 from typing import Union, Tuple
 import math
 
@@ -16,9 +17,23 @@ class SE3(LieAbstract):
         '''
         Constructor
         '''
-        self._rot = rot
-        self._pos = pos
+        self._rot = snapshot(rot)
+        self._pos = snapshot(pos)
         self._lib = LIB
+
+    def update_pos(self, pos):
+        """Replace translation; the input is captured independently."""
+        self._pos = same_shape(pos, self._pos)
+
+    def update_rot(self, rot):
+        """Replace rotation; the input is captured independently."""
+        self._rot = same_shape(rot, self._rot)
+
+    def update_pose(self, rot, pos):
+        """Atomically replace rotation and translation, preserving shapes."""
+        rotation = same_shape(rot, self._rot)
+        position = same_shape(pos, self._pos)
+        self._rot, self._pos = rotation, position
 
     @property
     def lib(self) -> str:
@@ -71,13 +86,13 @@ class SE3(LieAbstract):
         return SE3(SO3.quaternion_to_mat(quaternion, LIB), pos, LIB)
 
     def pos(self ) -> Union[np.ndarray, jnp.ndarray]:
-        return self._pos
+        return readonly_view(self._pos)
 
     def rot(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._rot
+        return readonly_view(self._rot)
 
     def pos_quaternion(self) -> Tuple[Union[np.ndarray, jnp.ndarray], Union[np.ndarray, jnp.ndarray]]:
-        return self._pos, SO3.quaternion(SO3.set_mat(self._rot, self.lib))
+        return readonly_view(self._pos), SO3.quaternion(SO3.set_mat(self._rot, self.lib))
 
     @staticmethod
     def eye(LIB : str = 'numpy'):

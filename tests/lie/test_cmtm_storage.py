@@ -22,7 +22,9 @@ def test_cm_storage_and_detached_ordinary_outputs(element, shape, order):
     np.testing.assert_array_equal(value.cmvecs().cm_vecs(), saved)
     supplied = CMVector.set_cmvecs(expected)
     direct = CMTM(element.eye(), supplied)
-    assert direct.cmvecs() is supplied
+    assert direct.cmvecs() is not supplied
+    if expected.size:
+        assert np.shares_memory(direct.cmvecs().cm_vecs(), supplied.cm_vecs())
 
 
 @pytest.mark.parametrize('element', [SO3, SE3])

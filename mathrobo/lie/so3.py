@@ -1,3 +1,4 @@
+from .._storage import snapshot, same_shape, readonly_view
 from typing import Union
 
 import jax
@@ -13,8 +14,12 @@ class SO3(LieAbstract):
         '''
         Constructor
         '''
-        self._rot = r
+        self._rot = snapshot(r)
         self._lib = LIB
+
+    def update_rot(self, rot):
+        """Replace rotation, preserving shape and isolating caller storage."""
+        self._rot = same_shape(rot, self._rot)
 
     @property
     def lib(self) -> str:
@@ -36,7 +41,7 @@ class SO3(LieAbstract):
         return 3
         
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._rot
+        return readonly_view(self._rot)
     
     @staticmethod
     def set_mat(mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
@@ -235,7 +240,7 @@ class SO3(LieAbstract):
         return transpose_last(self._rot)
 
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
-        return self._rot
+        return readonly_view(self._rot)
     
     @staticmethod
     def set_mat_adj(mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
