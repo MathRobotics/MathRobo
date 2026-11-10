@@ -188,7 +188,7 @@ class CMTM(Generic[T]):
         
     def __mat_elem(self, p : int):
         if self._lib == 'jax':
-            # p: jnp.int32 scalar でも Python int でも OK
+            # p may be a jnp.int32 scalar or a Python int
             dtype = self._cm_vecs[0].dtype
 
 

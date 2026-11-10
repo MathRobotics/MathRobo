@@ -135,7 +135,7 @@ def bspline_jacobian(knots, n_ctrl, degree, t, order=0):
 def jac_numerical(curve, ctrl, knots, k, tq, h=1e-6, order=0):
         """
         Finite-difference Jacobian for validation
-        curve(tq, order)  : 0-k 階(k = degree)まで評価
+        curve(tq, order)  : evaluate derivatives of orders 0 through k (k = degree)
         ctrl              : (n_ctrl, D)   control-point matrix
         knots             : (m+1,)        non-decreasing knot vector
         k                 : int           spline order k

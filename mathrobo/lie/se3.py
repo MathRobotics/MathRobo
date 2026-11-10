@@ -288,7 +288,7 @@ class SE3(SnapshotState, LieAbstract):
     @staticmethod
     def __integ_p_cross_r(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         """
-            p x Rの積分の計算
+            Compute the integral of hat(p) @ R.
         """
         vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
@@ -485,8 +485,8 @@ class SE3(SnapshotState, LieAbstract):
     @staticmethod
     def exp_adj(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''
-        SE3の随伴表現の計算
-        vec[0:3]の大きさは1を想定
+        Compute the adjoint representation of SE3.exp(vec, a).
+        The angular component vec[..., :3] need not have unit norm.
         '''
         vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:

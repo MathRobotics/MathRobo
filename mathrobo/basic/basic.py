@@ -11,7 +11,7 @@ def lib_error_message():
     return ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
 def iszero(x):
-    tolerance = 1e-8  # 許容範囲
+    tolerance = 1e-8  # Tolerance
     return math.isclose(x, 0, abs_tol=tolerance)
 
 def sin(theta, LIB = 'numpy'):
