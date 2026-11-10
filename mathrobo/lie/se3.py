@@ -26,6 +26,17 @@ class SE3(SnapshotState, LieAbstract):
     @staticmethod
     def _pose_storage(rot, pos, LIB):
         rot, pos = common_inexact(rot, pos, LIB)
+        if rot.ndim < 2 or rot.shape[-2:] != (3, 3):
+            raise ValueError("Rotation must have shape (..., 3, 3)")
+        if pos.ndim < 1 or pos.shape[-1] != 3:
+            raise ValueError("Position must have shape (..., 3)")
+        try:
+            batch_shape = np.broadcast_shapes(rot.shape[:-2], pos.shape[:-1])
+        except ValueError as exc:
+            raise ValueError("Rotation and position batch shapes must broadcast") from exc
+        xp = array_lib(LIB)
+        rot = xp.broadcast_to(rot, batch_shape + (3, 3))
+        pos = xp.broadcast_to(pos, batch_shape + (3,))
         return snapshot(rot), snapshot(pos)
 
     def update_pos(self, pos):
@@ -385,9 +396,7 @@ class SE3(SnapshotState, LieAbstract):
 
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        '''
-        vec[0:3]の大きさは1を想定
-        '''
+        """Integrate exp(hat(vec) * t) from zero to a (bottom-right = a)."""
         vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
@@ -402,13 +411,13 @@ class SE3(SnapshotState, LieAbstract):
             mat = jnp.zeros(vec.shape[:-1] + (4, 4), dtype=vec.dtype)
             mat = mat.at[..., 0:3, 0:3].set(R)
             mat = mat.at[..., 0:3, 3].set(p)
-            mat = mat.at[..., 3, 3].set(1)
+            mat = mat.at[..., 3, 3].set(a)
             return mat
         elif LIB == 'numpy':
             mat = np.zeros(vec.shape[:-1] + (4, 4), dtype=vec.dtype)
             mat[..., 0:3, 0:3] = R
             mat[..., 0:3, 3] = p
-            mat[..., 3, 3] = 1
+            mat[..., 3, 3] = a
             return mat
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
@@ -658,12 +667,22 @@ class SE3wrench(SE3):
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return transpose_last(SE3.exp_adj(vec, a, LIB))
+        return transpose_last(SE3.exp_adj(vec, -a, LIB))
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
-        return transpose_last(SE3.exp_integ_adj(vec, a, LIB))
+        return -transpose_last(SE3.exp_integ_adj(vec, -a, LIB))
     
+    @staticmethod
+    def exp_adj(vec, a=1., LIB='numpy'):
+        """Wrench action consistent with mat_adj and hat_adj."""
+        return SE3wrench.exp(vec, a, LIB)
+
+    @staticmethod
+    def exp_integ_adj(vec, a, LIB='numpy'):
+        """Integral of the wrench action."""
+        return SE3wrench.exp_integ(vec, a, LIB)
+
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''

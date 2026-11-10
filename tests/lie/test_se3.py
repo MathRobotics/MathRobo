@@ -99,7 +99,6 @@ def test_se3_exp_integ():
     
     m, _ = integrate.quad_vec(integrad, 0, a)
     
-    m[3,3] = m[3,3] / a
     
     np.testing.assert_allclose(res, m)
     
