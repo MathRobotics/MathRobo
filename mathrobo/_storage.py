@@ -1,8 +1,10 @@
 """Owned immutable array storage; public objects replace storage on update."""
 import numpy as np
+from ._numeric import as_inexact
 
 
-def snapshot(value):
+def snapshot(value, LIB=None):
+    value = as_inexact(value, LIB)
     if type(value).__module__.startswith(("jax", "jaxlib")):
         return value
     array = np.asarray(value)
@@ -16,8 +18,8 @@ def snapshot(value):
     return np.frombuffer(array.tobytes(), dtype=array.dtype).reshape(array.shape)
 
 
-def same_shape(value, previous):
-    value = snapshot(value)
+def same_shape(value, previous, LIB=None):
+    value = snapshot(value, LIB)
     if value.shape != previous.shape:
         raise ValueError("Updates must preserve array shape; construct a new object to resize")
     return value

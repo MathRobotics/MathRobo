@@ -1,3 +1,4 @@
+from .._numeric import as_inexact, common_inexact
 from .._storage import snapshot, same_shape, readonly_view
 from typing import Union, Tuple
 import math
@@ -17,23 +18,29 @@ class SE3(LieAbstract):
         '''
         Constructor
         '''
-        self._rot = snapshot(rot)
-        self._pos = snapshot(pos)
+        self._rot, self._pos = self._pose_storage(rot, pos, LIB)
         self._lib = LIB
 
+    @staticmethod
+    def _pose_storage(rot, pos, LIB):
+        rot, pos = common_inexact(rot, pos, LIB)
+        return snapshot(rot), snapshot(pos)
+
     def update_pos(self, pos):
-        """Replace translation; the input is captured independently."""
-        self._pos = same_shape(pos, self._pos)
+        """Replace translation, promoting rotation and position to a common dtype."""
+        pos = same_shape(pos, self._pos, self.lib)
+        self._rot, self._pos = self._pose_storage(self._rot, pos, self.lib)
 
     def update_rot(self, rot):
-        """Replace rotation; the input is captured independently."""
-        self._rot = same_shape(rot, self._rot)
+        """Replace rotation, promoting rotation and position to a common dtype."""
+        rot = same_shape(rot, self._rot, self.lib)
+        self._rot, self._pos = self._pose_storage(rot, self._pos, self.lib)
 
     def update_pose(self, rot, pos):
         """Atomically replace rotation and translation, preserving shapes."""
-        rotation = same_shape(rot, self._rot)
-        position = same_shape(pos, self._pos)
-        self._rot, self._pos = rotation, position
+        rotation = same_shape(rot, self._rot, self.lib)
+        position = same_shape(pos, self._pos, self.lib)
+        self._rot, self._pos = self._pose_storage(rotation, position, self.lib)
 
     @property
     def lib(self) -> str:
@@ -74,11 +81,13 @@ class SE3(LieAbstract):
     
     @staticmethod
     def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3':
+        mat = as_inexact(mat, LIB)
         return SE3(mat[..., 0:3, 0:3], mat[..., 0:3, 3], LIB)
     
     @staticmethod
     def set_pos_quaternion(pos: Union[np.ndarray, jnp.ndarray], 
                            quaternion: Union[np.ndarray, jnp.ndarray], LIB: str = 'numpy') -> 'SE3':
+        quaternion = as_inexact(quaternion, LIB)
         assert len(pos) == 3, "Position must be a 3-element vector."
         assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
         assert isinstance(pos, (np.ndarray, jnp.ndarray)), "Position must be a numpy or jax array."
@@ -147,6 +156,7 @@ class SE3(LieAbstract):
     @staticmethod
     def set_mat_adj(mat = np.identity(6), LIB : str = 'numpy') -> 'SE3':
         
+        mat = as_inexact(mat, LIB)
         rot = (mat[..., 0:3,0:3] + mat[..., 3:6,3:6]) * 0.5
         pos = SO3.vee(mat[..., 3:6,0:3] @ transpose_last(rot), LIB)
         
@@ -178,6 +188,7 @@ class SE3(LieAbstract):
         mat =
         [ SO3.hat(w)  v ]
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -201,6 +212,7 @@ class SE3(LieAbstract):
         hat commute operator on the tanget space vector
         hat(a) @ b = hat_commute(b) @ a 
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] < 3:
             raise ValueError("Input vector must have at least 3 elements.")
         w = vec[..., 0:3]
@@ -220,6 +232,7 @@ class SE3(LieAbstract):
         '''
         a = vee(hat(a))
         '''
+        vec_hat = as_inexact(vec_hat, LIB)
         if vec_hat.shape[-2:] != (4,4):
             raise ValueError("Input matrix must be of size (...,4,4).")
         
@@ -236,6 +249,7 @@ class SE3(LieAbstract):
     
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -263,6 +277,7 @@ class SE3(LieAbstract):
         """
             p x Rの積分の計算
         """
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -371,6 +386,7 @@ class SE3(LieAbstract):
         '''
         vec[0:3]の大きさは1を想定
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -403,6 +419,7 @@ class SE3(LieAbstract):
         [ SO3.hat(w)      0       ]
         [ SO3.hat(v)  SO3.hat(w)  ]
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -431,6 +448,7 @@ class SE3(LieAbstract):
             hat_adj(a) @ b  = hat_commute_adj(a) @ b
             return -hat_adj(vec)
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -438,6 +456,7 @@ class SE3(LieAbstract):
 
     @staticmethod
     def vee_adj(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec_hat = as_inexact(vec_hat, LIB)
         if vec_hat.shape[-2:] != (6,6):
             raise ValueError("Input matrix must be of size (...,6,6).")
         
@@ -458,6 +477,7 @@ class SE3(LieAbstract):
         SE3の随伴表現の計算
         vec[0:3]の大きさは1を想定
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
 
@@ -482,6 +502,7 @@ class SE3(LieAbstract):
     
     @staticmethod
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         xp = array_lib(LIB)
@@ -595,6 +616,7 @@ class SE3(LieAbstract):
 class SE3wrench(SE3):
     @staticmethod
     def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3wrench':
+        mat = as_inexact(mat, LIB)
         return SE3wrench(mat[..., 0:3, 0:3], mat[..., 0:3, 3], LIB)
     
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
@@ -651,6 +673,7 @@ class SE3wrench(SE3):
         [ SO3.hat(w)   SO3.hat(v) ]
         [     0        SO3.hat(w) ]
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
         
@@ -679,6 +702,7 @@ class SE3wrench(SE3):
         hat commute operator on the tanget space vector
         hat(a) @ b = hat_commute(b) @ a 
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] < 3:
             raise ValueError("Input vector must have at least 3 elements.")
         w = vec[..., 0:3]
@@ -701,6 +725,7 @@ class SE3wrench(SE3):
             [[ -SO3.hat(w)     -SO3.hat(v) ]
              [ -SO3.hat(v)     -SO3.hat(w) ]]
         '''
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 6:
             raise ValueError("Input vector must be of size 6.")
 
@@ -728,6 +753,7 @@ class SE3wrench(SE3):
 class SE3inertia(SE3):
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         mpg = vec[1:4]
         if LIB == 'jax':
             return jnp.block([
@@ -746,6 +772,7 @@ class SE3inertia(SE3):
     
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         v = vec[3:6]
         w = vec[0:3]
         if LIB == 'jax':

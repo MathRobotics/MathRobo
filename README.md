@@ -139,6 +139,16 @@ are detached from the coefficient storage and may differ by floating-point
 rounding. Composition, inversion, matrix recovery, and element-class changes
 keep coefficients normalized internally.
 
+Numeric inputs to SO3, SE3 (including wrench/inertia operators), CMVector, and
+CMTM matrix recovery/hat/vee paths are normalized at entry. NumPy integer and
+boolean arrays become float64; JAX integer/boolean arrays become float32, or
+float64 with `jax_enable_x64=True`. Floating-point and complex precision is
+preserved subject to JAX's configured precision. This applies to constructors,
+`set_*`, `update_*`, and direct Lie operations such as `exp` and its integrals.
+SE3 promotes rotation and translation to a common dtype at construction/update,
+so fractional positions and imaginary components are not discarded.
+Legacy `FactorialVector` keeps its existing conversion rules.
+
 SO3, SE3, and CMVector capture input arrays independently. NumPy internal
 arrays returned by `mat()` (SO3), `rot()`, `pos()`, `cm_vecs()`, and `cm_vec()`
 are read-only. Detached calculated outputs, including SE3/CMTM matrices and
@@ -178,20 +188,21 @@ imply JIT support for every CMTM API.
 
 `CMVector` stores only CM coefficients. Ordinary derivative arrays returned
 by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
-not change the stored coefficients. NumPy reconstruction uses at least float64
-precision, so the dtype may differ from the original input.
+not change the stored coefficients. Reconstruction preserves the coefficient
+dtype, including float32 and complex64.
 
 For NumPy inputs, both constructors capture independent coefficients;
-`set_cmvecs(coefficients)` preserves their dtype without factorial conversion.
+`set_cmvecs(coefficients)` avoids factorial conversion. Floating and complex
+inputs retain their dtype; integer and boolean inputs become float64.
 Coefficient accessors are read-only. Use `update_cmvecs` to replace coefficients
 or `update_vecs` to supply ordinary derivatives. Truncated series share immutable
 storage until updated, and updates do not propagate to other objects.
 
 | NumPy input dtype | `CMVector(values)` coefficients | `set_cmvecs(values)` coefficients | `.vecs()` / `.vec()` |
 | --- | --- | --- | --- |
-| float32 / float64 | float64 | Input dtype | float64 |
-| int32 / int64 | float64 | Input dtype | float64 |
-| complex64 / complex128 | complex128 | Input dtype | complex128 |
+| float32 / float64 | Input dtype | Input dtype | Input dtype |
+| Integers / bool | float64 | float64 | float64 |
+| complex64 / complex128 | Input dtype | Input dtype | Input dtype |
 
 `vee` and `vee_adj` preserve floating-point and complex matrix dtypes in their
 coefficient outputs, including `as_array=True` and the compatibility names.
@@ -235,6 +246,9 @@ after failures, prints a summary, and exits nonzero if any version fails.
 ## Changelog
 
 ### Unreleased
+
+- Breaking: integer/bool inputs are normalized to floating point at numeric entry points; SE3 rotation/position share a common dtype. This fixes truncation in integer poses and exponentials.
+- Breaking: CMVector now preserves float32/complex64 for normalization and ordinary outputs instead of promoting them to float64/complex128.
 
 - Fixed CMTM matrix recurrences discarding fractional or complex coefficients when the pose has an incompatible dtype.
 - Breaking: pose/CM coefficient inputs are snapshots; use `update_*` instead of direct array mutation. CMTM updates invalidate caches.

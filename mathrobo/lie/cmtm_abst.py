@@ -1,4 +1,5 @@
 from copy import copy
+from .._numeric import as_inexact
 from typing import TypeVar, Generic
 import numpy as np
 import jax.numpy as jnp
@@ -705,6 +706,7 @@ class CMTM(Generic[T]):
 
     @staticmethod
     def set_mat(T, mat : np.ndarray, LIB = 'numpy'):
+        mat = as_inexact(mat, LIB)
         size = T.eye().mat().shape[-1]
         if mat.shape[-1] % size != 0:
             raise TypeError("Matrix size is not same as element matrix")
@@ -890,7 +892,7 @@ class CMTM(Generic[T]):
         # Arrays retain their legacy meaning: use the supplied coefficients
         # directly, without interpreting them as ordinary derivatives.
         is_cmvector = hasattr(vecs, "cm_vecs")
-        coefficients = np.asarray(vecs.cm_vecs() if is_cmvector else vecs)
+        coefficients = as_inexact(vecs.cm_vecs() if is_cmvector else vecs, "numpy")
         if coefficients.ndim < 2:
             raise ValueError("Expected coefficients with shape (..., order, dimension)")
         n = coefficients.shape[-2]
@@ -955,7 +957,7 @@ class CMTM(Generic[T]):
     def __vee_func(dof, size: int, vee, mat):
         if size <= 0:
             raise TypeError("Element matrix size must be positive")
-        mat = np.asarray(mat)
+        mat = as_inexact(mat, "numpy")
         if mat.ndim < 2 or mat.shape[-2] != mat.shape[-1] or mat.shape[-1] % size:
             raise ValueError("Expected a square block matrix divisible by the element size")
         order = mat.shape[-1] // size

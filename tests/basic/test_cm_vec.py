@@ -164,11 +164,11 @@ def test_jax_arithmetic_and_truncation():
 
 
 @pytest.mark.parametrize("input_dtype, converted_dtype", [
-    (np.float32, np.float64),
+    (np.float32, np.float32),
     (np.float64, np.float64),
     (np.int32, np.float64),
     (np.int64, np.float64),
-    (np.complex64, np.complex128),
+    (np.complex64, np.complex64),
     (np.complex128, np.complex128),
 ])
 def test_numpy_conversion_dtype_contract(input_dtype, converted_dtype):
@@ -181,13 +181,13 @@ def test_numpy_conversion_dtype_contract(input_dtype, converted_dtype):
 
     assert ordinary.cm_vecs().dtype == np.dtype(converted_dtype)
     assert ordinary.cm_vec().dtype == np.dtype(converted_dtype)
-    assert direct.cm_vecs().dtype == values.dtype
-    assert direct.cm_vec().dtype == values.dtype
+    assert direct.cm_vecs().dtype == np.dtype(converted_dtype)
+    assert direct.cm_vec().dtype == np.dtype(converted_dtype)
     for series, expected in [(ordinary, values), (direct, values * factors)]:
         assert series.vecs().dtype == np.dtype(converted_dtype)
         assert series.vec().dtype == np.dtype(converted_dtype)
-        np.testing.assert_allclose(series.vecs(), expected)
-    np.testing.assert_allclose(ordinary.cm_vecs(), values / factors)
+        np.testing.assert_allclose(series.vecs(), expected, rtol=2e-6)
+    np.testing.assert_allclose(ordinary.cm_vecs(), values / factors, rtol=2e-6)
 
 
 @pytest.mark.parametrize("direct", [False, True])
@@ -259,7 +259,7 @@ def test_jax_conversion_dtype_contract(input_dtype, converted_dtype):
     ordinary = CMVector(values)
     direct = CMVector.set_cmvecs(values)
     assert ordinary.cm_vecs().dtype == jnp.dtype(converted_dtype)
-    assert direct.cm_vecs().dtype == values.dtype
+    assert direct.cm_vecs().dtype == jnp.dtype(converted_dtype)
     assert direct.vecs().dtype == jnp.dtype(converted_dtype)
     np.testing.assert_allclose(ordinary.vecs(), values, rtol=2e-6)
     changed = direct.cm_vecs().at[0, 0].set(0)

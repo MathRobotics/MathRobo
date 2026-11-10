@@ -1,3 +1,4 @@
+from .._numeric import as_inexact
 from .._storage import snapshot, same_shape, readonly_view
 from typing import Union
 
@@ -14,12 +15,12 @@ class SO3(LieAbstract):
         '''
         Constructor
         '''
-        self._rot = snapshot(r)
+        self._rot = snapshot(r, LIB)
         self._lib = LIB
 
     def update_rot(self, rot):
         """Replace rotation, preserving shape and isolating caller storage."""
-        self._rot = same_shape(rot, self._rot)
+        self._rot = same_shape(rot, self._rot, self.lib)
 
     @property
     def lib(self) -> str:
@@ -45,6 +46,7 @@ class SO3(LieAbstract):
     
     @staticmethod
     def set_mat(mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
+        mat = as_inexact(mat, LIB)
         return SO3(mat, LIB)
     
     def quaternion(self) -> np.ndarray:
@@ -95,6 +97,7 @@ class SO3(LieAbstract):
         
     @staticmethod
     def quaternion_to_mat(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        quaternion = as_inexact(quaternion, LIB)
         w, x, y, z = quaternion
         if LIB == 'jax':
             m = jnp.array([
@@ -115,12 +118,14 @@ class SO3(LieAbstract):
 
     @staticmethod
     def set_quaternion(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> 'SO3':
+        quaternion = as_inexact(quaternion, LIB)
         assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
         assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
         return SO3(SO3.quaternion_to_mat(quaternion, LIB), LIB)
     
     @staticmethod
     def set_euler(euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
+        euler = as_inexact(euler, LIB)
         assert len(euler) == 3, "Euler angles must be a 3-element vector."
         assert isinstance(euler, (np.ndarray, jnp.ndarray)), "Euler angles must be a numpy or jax array."
         roll, pitch, yaw = euler
@@ -221,6 +226,7 @@ class SO3(LieAbstract):
     
     @staticmethod
     def mat_to_quaternion(mat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        mat = as_inexact(mat, LIB)
         m = SO3(mat, LIB)
         return m.quaternion()
     
@@ -244,6 +250,7 @@ class SO3(LieAbstract):
     
     @staticmethod
     def set_mat_adj(mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
+        mat = as_inexact(mat, LIB)
         return SO3(mat, LIB)
 
     def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
@@ -251,6 +258,7 @@ class SO3(LieAbstract):
 
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
@@ -281,6 +289,7 @@ class SO3(LieAbstract):
 
     @staticmethod
     def vee(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec_hat = as_inexact(vec_hat, LIB)
         if vec_hat.shape[-2:] != (3, 3):
             raise ValueError("Input matrix must be of size (...,3,3).")
         if LIB == 'jax':
@@ -300,6 +309,7 @@ class SO3(LieAbstract):
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
@@ -316,6 +326,7 @@ class SO3(LieAbstract):
     
     @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
@@ -343,6 +354,7 @@ class SO3(LieAbstract):
     
     @staticmethod
     def exp_integ2nd(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
@@ -450,6 +462,7 @@ class SO3wrench(SO3):
 class SO3inertia(SO3):
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if LIB == 'jax':
             return jnp.array([
                 [vec[0], vec[5], vec[4]],
@@ -467,6 +480,7 @@ class SO3inertia(SO3):
     
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        vec = as_inexact(vec, LIB)
         if LIB == 'jax':
             return jnp.array([
                 [vec[0],      0,      0,      0, vec[2], vec[1]],

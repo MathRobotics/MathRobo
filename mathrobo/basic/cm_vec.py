@@ -7,6 +7,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .._batch import flatten_last2
+from .._numeric import as_inexact
 
 
 # Shared coefficients through the tenth derivative (orders 0 through 10).
@@ -23,16 +24,18 @@ class CMVector:
     normalized coefficients directly, capturing an independent snapshot.
     ``vecs()`` and ``vec()`` reconstruct ordinary derivatives on each call.
     These reconstructed arrays do not share storage with the coefficients.
-    NumPy conversions use at least float64 precision, as in FactorialVector;
-    ordinary outputs may differ from the input dtype and by rounding error.
+    Integer inputs are promoted to floating point; floating and complex
+    precision is preserved. Ordinary outputs may differ by rounding error.
     Arrays have shape ``(..., order, dimension)``; flattening preserves batches.
     """
 
     def __init__(self, vecs: Union[np.ndarray, jnp.ndarray]):
+        vecs = as_inexact(vecs)
         self._set_cm_vecs(vecs, squeeze_vec=vecs.ndim == 1)
         self._cm_vecs = snapshot(self._cm_vecs * self._scales(inverse=True))
 
     def _set_cm_vecs(self, cm_vecs, squeeze_vec=False):
+        cm_vecs = as_inexact(cm_vecs)
         self._squeeze_vec = squeeze_vec
         if cm_vecs.ndim == 1:
             cm_vecs = cm_vecs[..., None]
@@ -51,10 +54,10 @@ class CMVector:
 
         module = type(self._cm_vecs).__module__
         if module.startswith(("jax", "jaxlib")):
-            dtype = jnp.result_type(self._cm_vecs.dtype, jnp.float32)
+            dtype = self._cm_vecs.dtype
             scales = jnp.asarray(scales, dtype=dtype)
         else:
-            dtype = np.result_type(self._cm_vecs.dtype, np.float64)
+            dtype = self._cm_vecs.dtype
             scales = scales.astype(dtype, copy=False)
         return scales[:, None]
 
