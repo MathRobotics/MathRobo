@@ -28,3 +28,20 @@ def same_shape(value, previous, LIB=None):
 def readonly_view(value):
     """Expose data without sharing mutable NumPy shape metadata."""
     return value.view() if isinstance(value, np.ndarray) else value
+
+
+class SnapshotState:
+    """Restore immutable owned fields after deepcopy or pickle reconstruction."""
+    _snapshot_fields = ()
+
+    def __copy__(self):
+        # Updates replace arrays, so shallow copies may share immutable storage.
+        result = type(self).__new__(type(self))
+        result.__dict__ = self.__dict__.copy()
+        return result
+
+    def __setstate__(self, state):
+        state = state.copy()
+        for name in self._snapshot_fields:
+            state[name] = snapshot(state[name])
+        self.__dict__.update(state)

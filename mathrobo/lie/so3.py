@@ -1,5 +1,5 @@
 from .._numeric import as_inexact
-from .._storage import snapshot, same_shape, readonly_view
+from .._storage import snapshot, same_shape, readonly_view, SnapshotState
 from typing import Union
 
 import jax
@@ -9,8 +9,10 @@ import jax.numpy as jnp
 from .._batch import array_lib, matvec, transpose_last
 from .lie_abst import LieAbstract
 
-class SO3(LieAbstract):
+class SO3(SnapshotState, LieAbstract):
     _dof = 3
+    _snapshot_fields = ('_rot',)
+
     def __init__(self, r = np.identity(3), LIB : str = 'numpy'):
         '''
         Constructor

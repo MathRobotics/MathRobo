@@ -1,4 +1,4 @@
-from .._storage import snapshot, same_shape, readonly_view
+from .._storage import snapshot, same_shape, readonly_view, SnapshotState
 import math
 import operator
 from typing import Union
@@ -17,7 +17,7 @@ _FACTORIALS.setflags(write=False)
 _INVERSE_FACTORIALS.setflags(write=False)
 
 
-class CMVector:
+class CMVector(SnapshotState):
     """A derivative series stored as CM coefficients, ``vecs[k] / k!``.
 
     ``CMVector(vecs)`` accepts ordinary derivatives. ``set_cmvecs`` accepts
@@ -28,6 +28,8 @@ class CMVector:
     precision is preserved. Ordinary outputs may differ by rounding error.
     Arrays have shape ``(..., order, dimension)``; flattening preserves batches.
     """
+
+    _snapshot_fields = ('_cm_vecs',)
 
     def __init__(self, vecs: Union[np.ndarray, jnp.ndarray]):
         vecs = as_inexact(vecs)

@@ -1,5 +1,5 @@
 from .._numeric import as_inexact, common_inexact
-from .._storage import snapshot, same_shape, readonly_view
+from .._storage import snapshot, same_shape, readonly_view, SnapshotState
 from typing import Union, Tuple
 import math
 
@@ -11,9 +11,11 @@ from .._batch import array_lib, matvec, transpose_last
 from .lie_abst import LieAbstract
 from .so3 import SO3, SO3inertia, SO3wrench
 
-class SE3(LieAbstract):
+class SE3(SnapshotState, LieAbstract):
     _dof = 6
     _cls_so3 = SO3
+    _snapshot_fields = ('_rot', '_pos')
+
     def __init__(self, rot = np.identity(3), pos = np.zeros(3), LIB : str = 'numpy'): 
         '''
         Constructor

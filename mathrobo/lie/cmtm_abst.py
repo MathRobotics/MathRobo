@@ -69,6 +69,17 @@ class CMTM(Generic[T]):
         self._tangent_matrix_cache_numpy = {}
         self._tangent_cm_matrix_cache_numpy = {}
 
+    def __getstate__(self):
+        # Derived matrices are rebuilt after cloning/restoration. Do not serialize
+        # the coefficient alias separately from its owning CMVector.
+        return {name: ({} if name.endswith('_cache_numpy') else value)
+                for name, value in self.__dict__.items() if name != '_cm_vecs'}
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._cm_vecs = self._cmvecs.cm_vecs()
+        self._invalidate_caches()
+
     def _invalidate_caches(self):
         for name, cache in self.__dict__.items():
             if name.endswith('_cache_numpy'):
