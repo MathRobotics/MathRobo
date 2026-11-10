@@ -146,7 +146,10 @@ float64 with `jax_enable_x64=True`. Floating-point and complex precision is
 preserved subject to JAX's configured precision. This applies to constructors,
 `set_*`, `update_*`, and direct Lie operations such as `exp` and its integrals.
 SE3 promotes rotation and translation to a common dtype at construction/update,
-so fractional positions and imaginary components are not discarded.
+so fractional positions and imaginary components are not discarded. At construction,
+rotation `(..., 3, 3)` and translation `(..., 3)` batch axes are broadcast to a
+common shape; invalid shapes are rejected immediately. Updates preserve these
+stored shapes (supply the full batch shape to `update_*`).
 Legacy `FactorialVector` keeps its existing conversion rules.
 
 SO3, SE3, and CMVector capture input arrays independently. NumPy internal
@@ -174,6 +177,9 @@ update CMTM. `cm.cmvecs()` returns an independent wrapper, so update `cm`
 explicitly. Immutable internal storage may be shared, including by `truncate`,
 but updates replace storage and leave earlier snapshots unchanged.
 CMTM updates invalidate all derived caches; repeated reads do not scan inputs.
+Shallow/deep copies and pickle round trips preserve read-only storage and
+independent updates. CMTM copies/restored objects rebuild derived caches on
+first use instead of copying or serializing cached matrices.
 For JAX, construct objects inside traced functions; do not update persistent
 Python objects from inside JIT/grad transformations.
 
@@ -185,6 +191,8 @@ With JAX-backed poses and `LIB="jax"`, `mat`, `mat_adj`, `mat_inv`,
 differentiation. The series shape and `output_order` must be static during
 tracing. These methods do not retain JAX tracers in NumPy caches; this does not
 imply JIT support for every CMTM API.
+SO3/SE3 exponential and integral paths use Taylor coefficients near zero angle,
+so forward/reverse differentiation also works at zero and pure translation.
 
 `CMVector` stores only CM coefficients. Ordinary derivative arrays returned
 by `.vecs()` and `.vec()` are reconstructed on each call; modifying them does
@@ -243,9 +251,96 @@ Test Python 3.9–3.14 with separate environments (requires Bash and uv):
 The script uses `uv.lock` and may download Python and dependencies. It continues
 after failures, prints a summary, and exits nonzero if any version fails.
 
+## Planar rotations (SO2)
+
+`SO2` has one angular degree of freedom, a 2x2 rotation matrix and a 1x1
+identity adjoint. Use `SO2.set_angle(angle, LIB="numpy")` or `set_mat(matrix)`;
+angles can have batch axes and tangent vectors have shape `(..., 1)`.
+`angle()` returns a principal angle in `[-pi, pi]`.
+
+`inv()` returns an SO2 object; `mat_inv()` returns its matrix. `update_rot()`
+replaces owned read-only rotation storage, with the same copy/pickle semantics
+as SO3. Composition preserves the backend and rejects mixed backends.
+`exp`, `exp_integ`, `exp_integ2nd`, `hat`/`vee`, and the adjoint action support
+NumPy/JAX, batching and JIT. Zero-angle derivatives are supported.
+
+`CMTM(SO2.set_angle(angle), derivatives)` accepts derivatives of shape
+`(..., order - 1, 1)`. Matrix/inverse/apply paths work with JAX; composition
+and matrix recovery are tested with NumPy, as for the existing CMTM API.
+The adjoint contains no angle or angular-velocity information: `set_mat_adj`
+and `vee_adj` raise `ValueError`. Use `set_mat`/`set_angle` and ordinary `vee`.
+The misleading legacy `set_quaternion(angle)` remains a deprecated alias for
+`set_angle`; it does not accept a quaternion.
+
+## User-defined matrix Lie groups
+
+Subclass the public `mathrobo.MatrixLieGroup` in your own module. No registry,
+package fork, or edits to MathRobo are needed. Implement these four methods:
+
+| Method | Contract |
+| --- | --- |
+| `dof()` | Positive integer: Lie algebra dimension |
+| `mat_size()` | Positive integer: square representation size |
+| `hat(vec, LIB="numpy")` | Linear map `(..., dof)` to `(..., size, size)` |
+| `vee(matrix, LIB="numpy")` | Inverse of `hat` on the algebra; returns `(..., dof)` |
+
+A runnable, noncommutative example is provided in
+[examples/custom_lie_group.py](examples/custom_lie_group.py): `Affine1D`
+represents `x -> scale*x + offset` using a 2x2 matrix.
+Copy this class into your own module and use it directly:
+
+```python
+from my_groups import Affine1D  # your own module containing the example class
+from mathrobo import CMTM
+import numpy as np
+
+pose = Affine1D.set_mat(np.array([[2., .3], [0., 1.]]))
+series = CMTM(pose, np.array([[.2, .4], [.1, -.1]]))
+matrix = series.mat()
+pose.update_mat(np.array([[3., .2], [0., 1.]]))
+series.update_pose(pose)
+```
+
+Defaults provide identity, composition, inverse, adjoint, Lie brackets,
+commute operators, exponential/integral matrices, owned read-only storage,
+`update_mat`, and copy/pickle support. Adjoint columns are computed as
+`vee(g @ hat(e_i) @ inv(g))`; algebra adjoints use the corresponding matrix
+commutator. You may override these defaults with specialized faster methods.
+The representation must be faithful on the Lie algebra, with
+`vee(hat(v)) == v` and closure under commutators. Matrices supplied to the class
+must belong to the group: the base checks dimensions, not group membership.
+If needed, override construction and `update_mat` to validate membership.
+
+For JAX, implement `hat`/`vee` using `jax.numpy` when `LIB="jax"`, without
+converting tracers to NumPy or branching on their values. Batch axes must be
+preserved. Generic exponentials use SciPy or JAX matrix exponentials and are
+not intended to match hand-optimized group-specific performance.
+CMTM NumPy matrix/recovery/composition paths and JAX matrix/apply paths support
+these classes; this does not extend JIT support to all CMTM APIs. The optional
+`CMTM.rand` helper requires a user-defined `rand(LIB=...)` factory.
+Adjoint recovery (`set_mat_adj`, `vee_adj`) raises `NotImplementedError` by
+default because these maps need not be injective. Override only when justified.
+For pickle, define the class at module scope in an importable module.
+
+Test a new group against independent formulas: identity/inverse/composition,
+`vee(hat(v))`, conjugation and bracket identities, and finite-difference
+exponential derivatives. Check batch shapes and each backend you support.
+
 ## Changelog
 
 ### Unreleased
+
+- Added public `MatrixLieGroup` extension base and an external affine-group example; custom groups can be used with CMTM without registration. CMTM specialized paths now select built-in classes by identity, not class name.
+
+- Breaking: complete SO2 with one degree of freedom, 1x1 adjoints, SO2-valued inverse, owned storage/update APIs, batch/JAX operations and CMTM integration. Non-invertible adjoint recovery now raises explicitly; use `set_angle` instead of the deprecated `set_quaternion` alias.
+
+- Fixed SO2 principal-angle extraction for negative angles and all quadrants (`[-pi, pi]`).
+- Breaking: SE3wrench exponential/integral methods now use the same sign convention as its pose adjoint and `hat_adj`; `exp_adj`/`exp_integ_adj` also use the wrench action.
+- Breaking: `SE3.exp_integ(v, a)` now returns the full matrix integral, including bottom-right entry `a` instead of `1`. For the former homogeneous-coordinate convention, explicitly set that entry to `1` on a detached result.
+- SE3 now broadcasts rotation/translation batch axes at construction and rejects invalid layouts immediately.
+
+- Preserve immutable pose/coefficient storage after deepcopy and pickle restoration; rebuild CMTM caches from restored values.
+- Fix non-finite reverse derivatives of SO3/SE3 exponentials at zero and lost zero-angle derivatives in integral paths.
 
 - Breaking: integer/bool inputs are normalized to floating point at numeric entry points; SE3 rotation/position share a common dtype. This fixes truncation in integer poses and exponentials.
 - Breaking: CMVector now preserves float32/complex64 for normalization and ordinary outputs instead of promoting them to float64/complex128.

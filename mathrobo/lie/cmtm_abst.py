@@ -8,6 +8,7 @@ import jax
 
 from ..basic import cm_vec as cmvec
 from .._batch import flatten_last2, matvec
+from .se3 import SE3, SE3wrench
 
 T = TypeVar('T')
 
@@ -604,7 +605,7 @@ class CMTM(Generic[T]):
             return CMTM(m, cmvec.CMVector.set_cmvecs(vs), LIB=LIB)
 
         # SE3/SE3wrench-specialized fast path for homogeneous 4x4 blocks.
-        if T.__name__ in ('SE3', 'SE3wrench') and size == 4 and dof == 6:
+        if T in (SE3, SE3wrench) and size == 4 and dof == 6:
             m = T.set_mat(mat_blocks[0], LIB=LIB)
             vs = np.zeros((n - 1, 6), dtype=mat_blocks.dtype)
 
@@ -651,7 +652,7 @@ class CMTM(Generic[T]):
 
             return CMTM(m, cmvec.CMVector.set_cmvecs(vs), LIB=LIB)
 
-        m = T.set_mat(mat_blocks[0])
+        m = T.set_mat(mat_blocks[0], LIB=LIB)
         vs = np.zeros((n - 1, dof), dtype=mat_blocks.dtype)
 
         if n == 1:
@@ -666,11 +667,11 @@ class CMTM(Generic[T]):
             for j in range(i):
                 hat_j = hats[j]
                 if hat_j is None:
-                    hat_j = T.hat(vs[j])
+                    hat_j = T.hat(vs[j], LIB=LIB)
                     hats[j] = hat_j
                 m_tmp += mat_blocks[i - j] @ hat_j
-            vs[i] = T.vee(m_inv_mat @ (mat_blocks[i + 1] * (i + 1) - m_tmp))
-            hats[i] = T.hat(vs[i])
+            vs[i] = T.vee(m_inv_mat @ (mat_blocks[i + 1] * (i + 1) - m_tmp), LIB=LIB)
+            hats[i] = T.hat(vs[i], LIB=LIB)
 
         return CMTM(m, cmvec.CMVector.set_cmvecs(vs), LIB=LIB)
         

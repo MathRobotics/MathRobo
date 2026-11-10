@@ -7,3 +7,5 @@ from .so2 import *
 from .se3 import *
 
 from .cmtm_abst import *
+
+from .matrix_lie_group import MatrixLieGroup
