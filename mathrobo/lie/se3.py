@@ -511,12 +511,9 @@ class SE3(SnapshotState, LieAbstract):
         w = vec[..., 0:3]
         v = vec[..., 3:6]
         theta2 = xp.sum(w * w, axis=-1)
-        tiny = a * a * theta2 < 1e-24
-        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
-        theta = xp.sqrt(safe_theta2)
         x2 = a * a * theta2
-        series = x2 < 1e-6
-        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        series = xp.abs(x2) < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), theta2)
         closed_theta = xp.sqrt(closed_theta2)
         closed_angle = a * closed_theta
         ca, sa = xp.cos(closed_angle), xp.sin(closed_angle)
@@ -532,7 +529,6 @@ class SE3(SnapshotState, LieAbstract):
         A2 = xp.where(series, A2_series, A2_closed)
         A3 = xp.where(series, A3_series, A3_closed)
         A4 = xp.where(series, A4_series, A4_closed)
-        w = xp.where(tiny[..., None], xp.zeros_like(w), w)
         K = SE3.hat_adj(xp.concatenate((w, v), axis=-1), LIB)
         K2 = K @ K
         K3 = K2 @ K

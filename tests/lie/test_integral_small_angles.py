@@ -116,16 +116,11 @@ def test_integral_gradients(index, mode, dtype, a):
         assert np.isfinite(da).all()
         expected_dv, expected_da = [], []
         for v in vec:
-            tiny = np.linalg.norm(a * v[:3].astype(np.float64)) < 1e-12
-            effective = v.copy()
-            if tiny:
-                effective[:3] = 0
-            m, n = augmented(effective, index)
+            m, n = augmented(v, index)
             jac = []
             for basis in np.eye(len(v)):
                 direction = np.zeros_like(m)
-                if not tiny or np.any(basis[3:]):
-                    direction[:n, :n] = METHODS[index][1](basis)
+                direction[:n, :n] = METHODS[index][1](basis)
                 jac.append(expm_frechet(a*m, a*direction, compute_expm=False)[:n, -n:])
             expected_dv.append(np.stack(jac, axis=-1))
             expected_da.append((m @ expm(a*m))[:n, -n:])
@@ -159,7 +154,7 @@ def test_native_batch_gradients(index, mode):
 @pytest.mark.parametrize('a', [-2., 0.7, 2.])
 def test_zero_rotation_limit(index, mode, a):
     with enable_x64(True):
-        # Effective angles below, at, and above the strict 1e-12 cutoff.
+        # Effective angles below, at, and above the former 1e-12 cutoff.
         angles = np.array([0., 1e-300, 1e-34, 1e-16, 0.999e-12, 1e-12, 1.001e-12])
         vec = np.zeros((len(angles), 6 if index == 2 else 3))
         vec[:, 0] = angles / abs(a)
@@ -171,11 +166,10 @@ def test_zero_rotation_limit(index, mode, a):
         limit = (a*a/2 if index == 1 else a) * np.eye(n)
         if index == 2:
             limit[3:, :3] = (a*a/2) * SO3.hat(vec[0, 3:])
-        # No residual rotation corrections may survive in the tiny region.
-        np.testing.assert_array_equal(result[:5], np.broadcast_to(result[0], result[:5].shape))
         # Translation products may round differently depending on multiplication order.
         np.testing.assert_allclose(result[0], limit, rtol=3e-16 if index == 2 else 0, atol=0)
-        for v, actual in zip(vec[5:], result[5:]):
+        for v, actual in zip(vec, result):
             np.testing.assert_allclose(actual, small_angle_reference(v, a, index),
                                        rtol=2e-15, atol=1e-27)
-            assert actual[1, 2] != 0
+            if abs(a * v[0]) >= 1e-16:
+                assert actual[1, 2] != 0

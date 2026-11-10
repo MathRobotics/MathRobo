@@ -315,14 +315,21 @@ class SO3(SnapshotState, LieAbstract):
         if vec.shape[-1] != 3:
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
-        theta = xp.linalg.norm(vec, axis=-1)
-        a_theta = a * theta
+        theta2 = xp.sum(vec * vec, axis=-1)
+        x2 = a * a * theta2
+        series = xp.abs(x2) < 1e-6
+        # Keep the inactive closed-form branch differentiable at zero as well.
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), theta2)
+        closed_theta = xp.sqrt(closed_theta2)
+        closed_angle = a * closed_theta
+        A_closed = xp.sin(closed_angle) / closed_theta
+        B_closed = (1.0 - xp.cos(closed_angle)) / closed_theta2
+        A_series = a * (1 - x2/6 + x2*x2/120 - x2*x2*x2/5040)
+        B_series = a*a * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
+        A = xp.where(series, A_series, A_closed)
+        B = xp.where(series, B_series, B_closed)
         K = SO3.hat(vec, LIB)
         K2 = K @ K
-        theta_safe = xp.where(theta == 0, 1.0, theta)
-        theta2 = theta_safe * theta_safe
-        A = xp.where(theta == 0, a, xp.sin(a_theta) / theta_safe)
-        B = xp.where(theta == 0, 0.0, (1.0 - xp.cos(a_theta)) / theta2)
         I = xp.eye(3, dtype=vec.dtype)
         return I + A[..., None, None] * K + B[..., None, None] * K2
     
@@ -333,13 +340,9 @@ class SO3(SnapshotState, LieAbstract):
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
         theta2 = xp.sum(vec * vec, axis=-1)
-        tiny = a * a * theta2 < 1e-24
-        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
-        theta = xp.sqrt(safe_theta2)
-        a_theta = a * theta
         x2 = a * a * theta2
-        series = x2 < 1e-6
-        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        series = xp.abs(x2) < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), theta2)
         closed_theta = xp.sqrt(closed_theta2)
         closed_angle = a * closed_theta
         K = SO3.hat(vec, LIB)
@@ -352,7 +355,7 @@ class SO3(SnapshotState, LieAbstract):
         B = xp.where(series, B_series, B_closed)
         I = xp.eye(3, dtype=vec.dtype)
         result = a * I + A[..., None, None] * K + B[..., None, None] * K2
-        return xp.where(tiny[..., None, None], a * I, result)
+        return result
     
     @staticmethod
     def exp_integ2nd(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -361,13 +364,9 @@ class SO3(SnapshotState, LieAbstract):
             raise ValueError("Input vector must be of size 3.")
         xp = array_lib(LIB)
         theta2 = xp.sum(vec * vec, axis=-1)
-        tiny = a * a * theta2 < 1e-24
-        safe_theta2 = xp.where(tiny, xp.ones_like(theta2), theta2)
-        theta = xp.sqrt(safe_theta2)
-        a_theta = a * theta
         x2 = a * a * theta2
-        series = x2 < 1e-6
-        closed_theta2 = xp.where(series, xp.ones_like(theta2), safe_theta2)
+        series = xp.abs(x2) < 1e-6
+        closed_theta2 = xp.where(series, xp.ones_like(theta2), theta2)
         closed_theta = xp.sqrt(closed_theta2)
         closed_angle = a * closed_theta
         K = SO3.hat(vec, LIB)
@@ -380,7 +379,7 @@ class SO3(SnapshotState, LieAbstract):
         B = xp.where(series, B_series, B_closed)
         I = xp.eye(3, dtype=vec.dtype)
         result = 0.5 * a * a * I + A[..., None, None] * K + B[..., None, None] * K2
-        return xp.where(tiny[..., None, None], 0.5 * a * a * I, result)
+        return result
     
     @staticmethod
     def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
