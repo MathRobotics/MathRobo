@@ -5,7 +5,7 @@ from math import comb, factorial, sin, sqrt
 
 import numpy as np
 
-from .._taylor import taylor_matmul
+from .._taylor import taylor_matmul, taylor_matmul_left_vjp, taylor_matmul_vjp
 
 
 @lru_cache(maxsize=8)
@@ -87,14 +87,14 @@ def adjoint_integral_coefficients(s, order, xp, *, normalized=False):
     return coefficients
 
 
-def _adjoint_polynomial_series(angular, xp):
-    """Return the four scalar coefficients of the adjoint integral."""
+def _adjoint_polynomial_series(angular, xp, *, derivative=False):
+    """Return the four scalar coefficients and optionally their derivatives in s."""
     order = angular.shape[-2]
     angular_row = angular[..., None, :]
     squared = taylor_matmul(angular_row, angular_row.swapaxes(-1, -2), xp)
     base = squared[..., 0, 0, 0]
     derivatives = adjoint_integral_coefficients(
-        base, order - 1, xp, normalized=True,
+        base, order if derivative else order - 1, xp, normalized=True,
     )
     derivatives = xp.stack([xp.stack(row, axis=-1) for row in derivatives], axis=-2)
 
@@ -110,7 +110,13 @@ def _adjoint_polynomial_series(angular, xp):
         zeros = xp.zeros_like(squared[..., :degree, 0, 0])
         powers.append(xp.concatenate((zeros, power[..., 0, 0]), axis=-1))
     composition = xp.stack(powers, axis=-1)
-    return composition @ derivatives, one
+    coefficients = composition @ derivatives[..., :order, :]
+    if not derivative:
+        return coefficients, one
+
+    scales = xp.arange(1, order + 1, dtype=derivatives.dtype)
+    rates = composition @ (derivatives[..., 1:, :] * scales[:, None])
+    return coefficients, rates
 
 
 def _adjoint_polynomial_stages(coefficients, generator, xp):
@@ -130,3 +136,37 @@ def adjoint_integral_series(angular, generator, xp):
     return taylor_matmul(_adjoint_polynomial_stages(coefficients, generator, xp)[-1], generator, xp) + (
         one * xp.eye(generator.shape[-1], dtype=generator.dtype)
     )
+
+
+def adjoint_integral_series_jvp(angular, generator, angular_direction, generator_direction, xp):
+    coefficients, rates = _adjoint_polynomial_series(angular, xp, derivative=True)
+    stages = _adjoint_polynomial_stages(coefficients, generator, xp)
+    ds = 2 * taylor_matmul(angular[..., None, :], angular_direction[..., :, None], xp)
+    dc = taylor_matmul(ds, rates[..., None, :], xp)[..., 0, :]
+    identity = xp.eye(generator.shape[-1], dtype=generator.dtype)
+    tangent = dc[..., 3, None, None] * identity
+    for stage, i in zip(stages, (2, 1, 0)):
+        tangent = (
+            taylor_matmul(tangent, generator, xp)
+            + taylor_matmul(stage, generator_direction, xp)
+            + dc[..., i, None, None] * identity
+        )
+    return taylor_matmul(tangent, generator, xp) + taylor_matmul(stages[-1], generator_direction, xp)
+
+
+def adjoint_integral_series_vjp(angular, generator, cotangent, xp):
+    coefficients, rates = _adjoint_polynomial_series(angular, xp, derivative=True)
+    stages = _adjoint_polynomial_stages(coefficients, generator, xp)
+    stage_cotangent, generator_cotangent = taylor_matmul_vjp(stages[-1], generator, cotangent, xp)
+    coefficient_cotangents = []
+    for stage in reversed(stages[:-1]):
+        coefficient_cotangents.append(xp.trace(stage_cotangent, axis1=-2, axis2=-1))
+        stage_cotangent, increment = taylor_matmul_vjp(stage, generator, stage_cotangent, xp)
+        generator_cotangent = generator_cotangent + increment
+    coefficient_cotangents.append(xp.trace(stage_cotangent, axis1=-2, axis2=-1))
+    dc = xp.stack(coefficient_cotangents, axis=-1)
+
+    # c(t) = c(s(t)) and s(t) = angular(t) dot angular(t).
+    ds = taylor_matmul_left_vjp(rates[..., None, :], dc[..., None, :], xp)
+    angular_cotangent = taylor_matmul_left_vjp(angular[..., :, None], ds, xp)
+    return 2 * angular_cotangent[..., 0, :], generator_cotangent

@@ -1,5 +1,5 @@
 from copy import copy
-from .._numeric import as_inexact
+from .._numeric import as_inexact, common_inexact
 from .._taylor import taylor_matmul
 from typing import TypeVar, Generic
 import numpy as np
@@ -10,6 +10,7 @@ import jax
 from ..basic import cm_vec as cmvec
 from .._batch import array_lib, flatten_last2, matvec
 from .se3 import SE3, SE3wrench
+from ._se3_jacobian import adjoint_integral_series_jvp, adjoint_integral_series_vjp
 
 T = TypeVar('T')
 
@@ -755,6 +756,43 @@ class CMTM(Generic[T]):
         """
         coefficients = CMTM._se3_coordinate_coefficients(coordinates, LIB)
         return SE3._right_jacobian_series(coefficients, LIB)
+
+    @staticmethod
+    def se3_right_jacobian_coefficients_jvp(coordinates, direction, LIB: str = 'numpy'):
+        """Apply the derivative to a direction of shape (..., order, 6).
+
+        Coordinates and direction are normalized Taylor rows with matching
+        shapes. Return the coefficient variations with shape (..., order, 6, 6).
+        """
+        coordinates = CMTM._se3_coordinate_coefficients(coordinates, LIB)
+        direction = CMTM._se3_coordinate_coefficients(direction, LIB)
+        if direction.shape != coordinates.shape:
+            raise ValueError("direction must have the same coefficient shape as coordinates")
+        coordinates, direction = common_inexact(coordinates, direction, LIB)
+        return adjoint_integral_series_jvp(
+            coordinates[..., :3], SE3.hat_adj(-coordinates, LIB),
+            direction[..., :3], SE3.hat_adj(-direction, LIB), array_lib(LIB),
+        )
+
+    @staticmethod
+    def se3_right_jacobian_coefficients_vjp(coordinates, cotangent, LIB: str = 'numpy'):
+        """Apply the transpose derivative to shape (..., order, 6, 6).
+
+        The cotangent must match the Jacobian coefficient shape. Return
+        (..., order, 6) in the same normalized coordinates, using the
+        unweighted sum over coefficient rows and matrix entries as the pairing.
+        """
+        coordinates = CMTM._se3_coordinate_coefficients(coordinates, LIB)
+        coordinates, cotangent = common_inexact(coordinates, cotangent, LIB)
+        if cotangent.shape != coordinates.shape + (6,):
+            raise ValueError("cotangent must have the right Jacobian coefficient shape")
+        xp = array_lib(LIB)
+        angular, generator = adjoint_integral_series_vjp(
+            coordinates[..., :3], SE3.hat_adj(-coordinates, LIB), cotangent, xp,
+        )
+        basis = SE3.hat_adj(-xp.eye(6, dtype=coordinates.dtype), LIB)
+        coordinate_cotangent = xp.einsum("...ij,kij->...k", generator, basis)
+        return coordinate_cotangent + xp.concatenate((angular, xp.zeros_like(angular)), axis=-1)
 
     @classmethod
     def from_se3_exponential_coordinates(cls, coordinates, LIB: str = 'numpy', *, return_jacobian=False):

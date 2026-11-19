@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from scipy.linalg import expm
+from scipy.linalg import expm, expm_frechet
 
 from mathrobo import CMTM, CMVector, SE3
 
@@ -104,3 +104,65 @@ def test_jit_batched_coefficients_and_zero_rotation_gradient():
     np.testing.assert_allclose(jacobian, jr, atol=2e-6)
     gradient = jax.grad(lambda x: compute(x)[0].sum() + compute(x)[2].sum())(coordinates[:1])
     assert np.isfinite(gradient).all()
+
+
+def jacobian_direction_reference(coordinates, direction):
+    generator = lifted_generator(SE3.hat_adj(-coordinates))
+    perturbation = lifted_generator(SE3.hat_adj(-direction))
+    size = generator.shape[0]
+    augmented = np.zeros((2 * size, 2 * size))
+    augmented[:size, :size] = generator
+    augmented[:size, size:] = np.eye(size)
+    delta = np.zeros_like(augmented)
+    delta[:size, :size] = perturbation
+    derivative = expm_frechet(augmented, delta, compute_expm=False)
+    return derivative[:size, size:size + 6].reshape(-1, 6, 6)
+
+
+@pytest.mark.parametrize("order", [1, 4, 7])
+def test_coefficient_products_against_block_frechet_and_duality(order):
+    rng = np.random.default_rng(42)
+    coordinates = rng.normal(scale=.3, size=(2, 2, order, 6))
+    coordinates[..., 0, :3] = [[[0., 0., 0.], [1e-10, 0., 0.]],
+                               [[np.pi, 0., 0.], [2.00001, 0., 0.]]]
+    direction = rng.normal(scale=.2, size=coordinates.shape)
+    cotangent = rng.normal(size=coordinates.shape + (6,))
+    jvp = CMTM.se3_right_jacobian_coefficients_jvp(coordinates, direction)
+    vjp = CMTM.se3_right_jacobian_coefficients_vjp(coordinates, cotangent)
+    expected = np.stack([
+        jacobian_direction_reference(x, dx)
+        for x, dx in zip(coordinates.reshape(-1, order, 6), direction.reshape(-1, order, 6))
+    ]).reshape(cotangent.shape)
+    np.testing.assert_allclose(jvp, expected, atol=4e-12, rtol=4e-12)
+    np.testing.assert_allclose(np.sum(jvp * cotangent, axis=(-3, -2, -1)),
+                               np.sum(direction * vjp, axis=(-2, -1)), atol=5e-12)
+
+
+def test_jit_coefficient_products_match_jax_autodiff():
+    rng = np.random.default_rng(75)
+    coordinates = jnp.asarray(rng.normal(scale=.2, size=(2, 4, 6)), dtype=jnp.float32)
+    coordinates = coordinates.at[0, 0, :3].set(0)
+    coordinates = coordinates.at[1, 0, :3].set(jnp.array([2.3, -.2, .1]))
+    direction = jnp.asarray(rng.normal(size=coordinates.shape), dtype=coordinates.dtype)
+    cotangent = jnp.asarray(rng.normal(size=coordinates.shape + (6,)), dtype=coordinates.dtype)
+
+    def value(x):
+        return CMTM.se3_right_jacobian_coefficients(x, LIB="jax")
+
+    @jax.jit
+    def products(x, dx, dy):
+        return (CMTM.se3_right_jacobian_coefficients_jvp(x, dx, LIB="jax"),
+                CMTM.se3_right_jacobian_coefficients_vjp(x, dy, LIB="jax"))
+
+    jvp, vjp = products(coordinates, direction, cotangent)
+    assert jvp.dtype == vjp.dtype == coordinates.dtype
+    np.testing.assert_allclose(jvp, jax.jvp(value, (coordinates,), (direction,))[1], atol=3e-6, rtol=3e-6)
+    np.testing.assert_allclose(vjp, jax.vjp(value, coordinates)[1](cotangent)[0], atol=3e-6, rtol=3e-6)
+
+
+def test_coefficient_products_validate_shapes():
+    coordinates = np.zeros((2, 4, 6))
+    with pytest.raises(ValueError, match="direction.*same coefficient shape"):
+        CMTM.se3_right_jacobian_coefficients_jvp(coordinates, np.zeros((4, 6)))
+    with pytest.raises(ValueError, match="cotangent.*Jacobian coefficient shape"):
+        CMTM.se3_right_jacobian_coefficients_vjp(coordinates, np.zeros((2, 4, 6)))

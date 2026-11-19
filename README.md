@@ -177,6 +177,21 @@ batch axes and support NumPy and JAX. For JAX JIT, pass `LIB="jax"`, keep the
 coefficient count and `return_jacobian` static, and return arrays from the
 traced function. The coefficient recurrences use analytic series products.
 
+To differentiate the Jacobian coefficients with respect to the input
+coefficients, use the direct products:
+
+```python
+dj = mr.CMTM.se3_right_jacobian_coefficients_jvp(coordinates, direction)
+dx = mr.CMTM.se3_right_jacobian_coefficients_vjp(coordinates, cotangent)
+```
+
+The direction matches the coordinate array shape `(..., order, 6)`.
+The cotangent matches the Jacobian coefficient shape `(..., order, 6, 6)`.
+Both use the normalized Taylor convention and preserve batch axes. The
+transpose uses the sum over all coefficient rows and entries without
+factorial weights. NumPy and JAX use the same forward and reverse recurrences
+and do not construct a dense derivative.
+
 ### CMTM coefficient operators
 
 CMTM block operators use `CMVector`, whose coefficients are ordinary
