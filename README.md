@@ -133,6 +133,26 @@ logarithm is discontinuous across that branch. For increments outside the
 principal branch, `difference` returns an equivalent principal increment
 that reproduces the resulting pose.
 
+### SE3 right Jacobian
+
+The exponential Jacobian maps the time derivative of exponential coordinates
+`xi` to body velocity `Jr(xi) @ xi_dot` for `T = SE3.exp(xi)`.
+The following methods return `(..., 6, 6)` matrices:
+
+```python
+jr = mr.SE3.right_jacobian(xi)
+dj = mr.SE3.right_jacobian_directional(xi, u)
+d2j = mr.SE3.right_jacobian_second_directional(xi, u, v)
+```
+
+`dj` and `d2j` are `DJr(xi)[u]` and `D²Jr(xi)[u, v]`. The input coordinates
+and directions have shape `(..., 6)` in angular-first order; leading axes
+broadcast together. The same analytic kernel computes `SE3.exp_integ_adj`.
+It evaluates a Taylor series near zero rotation and trigonometric coefficients
+at larger angles. NumPy and JAX (including JIT) use the same coefficients and
+analytic product rules. `Jr` and its directional derivatives are smooth at π;
+the principal logarithm used for pose differences has a branch there.
+
 ### CMTM coefficient operators
 
 CMTM block operators use `CMVector`, whose coefficients are ordinary

@@ -8,6 +8,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .._batch import array_lib, matvec, transpose_last
+from ._se3_jacobian import adjoint_integral_coefficients
 from .lie_abst import LieAbstract
 from .so3 import SO3, SO3inertia, SO3wrench
 
@@ -559,42 +560,79 @@ class SE3(SnapshotState, LieAbstract):
     @staticmethod
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         vec = as_inexact(vec, LIB)
-        if vec.shape[-1] != 6:
-            raise ValueError("Input vector must be of size 6.")
+        return a * SE3._unit_adjoint_integral(a * vec, (), LIB)
+
+    @staticmethod
+    def right_jacobian(xi, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return the exponential Jacobian in body coordinates, with shape (..., 6, 6)."""
+        return SE3._unit_adjoint_integral(-as_inexact(xi, LIB), (), LIB)
+
+    @staticmethod
+    def right_jacobian_directional(xi, u, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return DJ_r(xi)[u] for a direction in the same exponential coordinates."""
+        return SE3._unit_adjoint_integral(-as_inexact(xi, LIB), (-as_inexact(u, LIB),), LIB)
+
+    @staticmethod
+    def right_jacobian_second_directional(xi, u, v, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return the symmetric mixed directional derivative D²J_r(xi)[u, v]."""
+        directions = (-as_inexact(u, LIB), -as_inexact(v, LIB))
+        return SE3._unit_adjoint_integral(-as_inexact(xi, LIB), directions, LIB)
+
+    @staticmethod
+    def _unit_adjoint_integral(vec, directions, LIB):
+        """Evaluate the adjoint integral over [0, 1] or its directional derivatives."""
         xp = array_lib(LIB)
-        w = vec[..., 0:3]
-        v = vec[..., 3:6]
-        theta2 = xp.sum(w * w, axis=-1)
-        x2 = a * a * theta2
-        series = xp.abs(x2) < 1e-6
-        closed_theta2 = xp.where(series, xp.ones_like(theta2), theta2)
-        closed_theta = xp.sqrt(closed_theta2)
-        closed_angle = a * closed_theta
-        ca, sa = xp.cos(closed_angle), xp.sin(closed_angle)
-        A1_closed = (4.0 - 4.0*ca - closed_angle*sa) / (2.0 * closed_theta2)
-        A2_closed = (4.0*closed_angle - 5.0*sa + closed_angle*ca) / (2.0 * closed_theta2 * closed_theta)
-        A3_closed = (2.0 - 2.0*ca - closed_angle*sa) / (2.0 * closed_theta2 * closed_theta2)
-        A4_closed = (2.0*closed_angle - 3.0*sa + closed_angle*ca) / (2.0 * closed_theta2 * closed_theta2 * closed_theta)
-        A1_series = a*a * (1/2 - x2*x2/720 + x2*x2*x2/20160)
-        A2_series = a**3 * (1/6 - x2*x2/5040 + x2*x2*x2/181440)
-        A3_series = a**4 * (1/24 - x2/360 + x2*x2/13440 - x2*x2*x2/907200)
-        A4_series = a**5 * (1/120 - x2/2520 + x2*x2/120960 - x2*x2*x2/9979200)
-        A1 = xp.where(series, A1_series, A1_closed)
-        A2 = xp.where(series, A2_series, A2_closed)
-        A3 = xp.where(series, A3_series, A3_closed)
-        A4 = xp.where(series, A4_series, A4_closed)
-        K = SE3.hat_adj(xp.concatenate((w, v), axis=-1), LIB)
-        K2 = K @ K
-        K3 = K2 @ K
-        K4 = K3 @ K
-        I = xp.eye(6, dtype=vec.dtype)
-        return (
-            a * I
-            + A1[..., None, None] * K
-            + A2[..., None, None] * K2
-            + A3[..., None, None] * K3
-            + A4[..., None, None] * K4
-        )
+        inputs = (vec, *directions)
+        if any(value.ndim == 0 or value.shape[-1] != 6 for value in inputs):
+            raise ValueError("Input vector and directions must have shape (..., 6)")
+        order = len(directions)
+        dtype = xp.result_type(*(value.dtype for value in inputs))
+        vec, *directions = (value.astype(dtype, copy=False) for value in inputs)
+        angular = vec[..., :3]
+        theta_squared = xp.sum(angular * angular, axis=-1)
+        coefficients = adjoint_integral_coefficients(theta_squared, order, xp)
+        generator = SE3.hat_adj(vec, LIB)
+        identity = xp.eye(6, dtype=dtype)
+
+        if order == 0:
+            a1, a2, a3, a4 = coefficients[0]
+            polynomial = a4[..., None, None] * generator + a3[..., None, None] * identity
+            polynomial = polynomial @ generator + a2[..., None, None] * identity
+            polynomial = polynomial @ generator + a1[..., None, None] * identity
+            return identity + polynomial @ generator
+
+        u = directions[0]
+        generator_u = SE3.hat_adj(u, LIB)
+        theta_u = 2 * xp.sum(angular * u[..., :3], axis=-1)
+        if order == 2:
+            v = directions[1]
+            generator_v = SE3.hat_adj(v, LIB)
+            theta_v = 2 * xp.sum(angular * v[..., :3], axis=-1)
+            theta_uv = 2 * xp.sum(u[..., :3] * v[..., :3], axis=-1)
+
+        # Horner evaluation with the product and chain rules at each step.
+        c, dc = coefficients[0][3], coefficients[1][3]
+        value = c[..., None, None] * identity
+        value_u = (dc * theta_u)[..., None, None] * identity
+        if order == 2:
+            value_v = (dc * theta_v)[..., None, None] * identity
+            dc_uv = coefficients[2][3] * theta_u * theta_v + dc * theta_uv
+            value_uv = dc_uv[..., None, None] * identity
+
+        for i in range(2, -1, -1):
+            c, dc = coefficients[0][i], coefficients[1][i]
+            if order == 2:
+                dc_uv = coefficients[2][i] * theta_u * theta_v + dc * theta_uv
+                value_uv = (value_uv @ generator + value_u @ generator_v
+                            + value_v @ generator_u + dc_uv[..., None, None] * identity)
+                value_v = (value_v @ generator + value @ generator_v
+                           + (dc * theta_v)[..., None, None] * identity)
+            value_u = (value_u @ generator + value @ generator_u
+                       + (dc * theta_u)[..., None, None] * identity)
+            value = value @ generator + c[..., None, None] * identity
+        if order == 2:
+            return value_uv @ generator + value_u @ generator_v + value_v @ generator_u
+        return value_u @ generator + value @ generator_u
 
     @staticmethod
     def sub_tan_vec(val0 : 'SE3', val1 : 'SE3', 
