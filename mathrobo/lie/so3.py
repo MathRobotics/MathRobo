@@ -334,6 +334,33 @@ class SO3(SnapshotState, LieAbstract):
         return I + A[..., None, None] * K + B[..., None, None] * K2
     
     @staticmethod
+    def _log_mat(rot, LIB):
+        """Principal rotation vector of a real rotation matrix."""
+        xp = array_lib(LIB)
+        skew = SO3.vee(rot, LIB)
+        sin_squared = xp.sum(skew * skew, axis=-1)
+        cosine = (xp.trace(rot, axis1=-2, axis2=-1) - 1) / 2
+        near_identity = (cosine > 0) & (sin_squared < 1e-6)
+        near_pi = cosine < -0.5
+
+        sine = xp.sqrt(xp.where(near_identity, xp.ones_like(sin_squared), sin_squared))
+        angle = xp.arctan2(sine, cosine)
+        scale = angle / xp.where(near_pi, xp.ones_like(sine), sine)
+        series = 1 + sin_squared * (1 / 6 + sin_squared * (3 / 40))
+        ordinary = xp.where(near_identity, series, scale)[..., None] * skew
+
+        # The symmetric part gives (1 - cos(angle)) times the axis outer product.
+        # Its largest diagonal selects a well-scaled row even at angle pi.
+        identity = xp.eye(3, dtype=rot.dtype)
+        symmetric = (rot + transpose_last(rot)) / 2 - cosine[..., None, None] * identity
+        index = xp.argmax(xp.diagonal(symmetric, axis1=-2, axis2=-1), axis=-1)
+        axis = xp.take_along_axis(symmetric, index[..., None, None], axis=-2)[..., 0, :]
+        axis = xp.where(near_pi[..., None], axis, identity[0])
+        axis = axis / xp.sqrt(xp.sum(axis * axis, axis=-1, keepdims=True))
+        sign = xp.where(xp.sum(axis * skew, axis=-1) < 0, -1, 1).astype(rot.dtype)
+        return xp.where(near_pi[..., None], (sign * angle)[..., None] * axis, ordinary)
+
+    @staticmethod
     def exp_integ(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         vec = as_inexact(vec, LIB)
         if vec.shape[-1] != 3:
@@ -347,7 +374,8 @@ class SO3(SnapshotState, LieAbstract):
         closed_angle = a * closed_theta
         K = SO3.hat(vec, LIB)
         K2 = K @ K
-        A_closed = (1.0 - xp.cos(closed_angle)) / closed_theta2
+        # The half-angle form avoids subtracting nearly equal values in float32.
+        A_closed = 2 * (xp.sin(closed_angle / 2) / closed_theta)**2
         B_closed = (closed_angle - xp.sin(closed_angle)) / (closed_theta2 * closed_theta)
         A_series = a*a * (1/2 - x2/24 + x2*x2/720 - x2*x2*x2/40320)
         B_series = a*a*a * (1/6 - x2/120 + x2*x2/5040 - x2*x2*x2/362880)

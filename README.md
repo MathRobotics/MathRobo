@@ -106,6 +106,33 @@ ys = spl(ts)
 print(ys)
 ```
 
+### SE3 pose increments
+
+`pose.integrate(delta)` returns a new pose using the right increment
+`pose @ Exp(delta)`. `pose.difference(other)` returns `Log(pose.inv() @ other)`
+in the body frame of `pose`. `pose.log()` returns the exponential coordinates
+of the pose itself. For example:
+
+```python
+pose = mr.SE3.eye()
+delta = np.array([0.2, 0.0, 0.0, 0.0, 0.3, 0.0])
+next_pose = pose.integrate(delta)
+recovered = pose.difference(next_pose)
+```
+
+The tangent layout is `(..., 6)` with rotation vector `phi` in radians followed
+by linear exponential coordinates `rho`. The translation of `Exp(delta)` is
+`SO3.exp_integ(phi) @ rho`. `next_pose.pos()` is the position of the resulting
+pose in world coordinates.
+
+These methods broadcast leading batch axes and support NumPy and JAX,
+including JIT when poses are constructed inside the traced function. `log`
+and `difference` operate on real poses. They choose a principal rotation with
+norm at most π. At π either axis sign represents the rotation, and the
+logarithm is discontinuous across that branch. For increments outside the
+principal branch, `difference` returns an equivalent principal increment
+that reproduces the resulting pose.
+
 ### CMTM coefficient operators
 
 CMTM block operators use `CMVector`, whose coefficients are ordinary

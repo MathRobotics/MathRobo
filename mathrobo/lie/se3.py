@@ -285,6 +285,51 @@ class SE3(SnapshotState, LieAbstract):
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
+    def log(self) -> Union[np.ndarray, jnp.ndarray]:
+        """Return principal real exponential coordinates ``[..., (phi, rho)]``.
+
+        The rotation has norm at most pi. At pi either axis sign can represent
+        the rotation, and the logarithm is discontinuous across this branch.
+        """
+        if self._rot.dtype.kind == 'c':
+            raise TypeError("SE3.log requires a real pose")
+        xp = array_lib(self.lib)
+        phi = SO3._log_mat(self._rot, self.lib)
+        theta_squared = xp.sum(phi * phi, axis=-1)
+        small = theta_squared < 1 / 64
+        safe_squared = xp.where(small, xp.ones_like(theta_squared), theta_squared)
+        half = xp.sqrt(safe_squared) / 2
+        coefficient = (1 - half * xp.cos(half) / xp.sin(half)) / safe_squared
+        series = 1 / 12 + theta_squared * (
+            1 / 720 + theta_squared * (1 / 30240 + theta_squared / 1209600)
+        )
+        coefficient = xp.where(small, series, coefficient)
+
+        # Apply the inverse of SO3.exp_integ(phi, 1) to the position.
+        hat = SO3.hat(phi, self.lib)
+        cross = matvec(hat, self._pos)
+        rho = self._pos - cross / 2 + coefficient[..., None] * matvec(hat, cross)
+        return xp.concatenate((phi, rho), axis=-1).astype(self._rot.dtype)
+
+    def integrate(self, delta) -> 'SE3':
+        """Return ``self @ Exp(delta)`` for a body-frame increment ``(..., 6)``."""
+        delta = as_inexact(delta, self.lib)
+        if delta.ndim == 0 or delta.shape[-1] != SE3.dof():
+            raise ValueError("Increment must have shape (..., 6)")
+        increment = SE3.set_mat(SE3.exp(delta, LIB=self.lib), self.lib)
+        return self @ increment
+
+    def difference(self, other: 'SE3') -> Union[np.ndarray, jnp.ndarray]:
+        """Return ``Log(self.inv() @ other)`` in the body frame of ``self``."""
+        if not isinstance(other, SE3):
+            raise TypeError("SE3.difference requires an SE3 pose")
+        if self.lib != other.lib:
+            raise ValueError("SE3.difference requires matching backends")
+        rotation_inverse = transpose_last(self._rot)
+        relative_rot = rotation_inverse @ other._rot
+        relative_pos = matvec(rotation_inverse, other._pos - self._pos)
+        return SE3(relative_rot, relative_pos, self.lib).log()
+
     @staticmethod
     def __integ_p_cross_r(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         """
