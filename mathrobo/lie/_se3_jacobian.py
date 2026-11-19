@@ -5,6 +5,9 @@ from math import comb, factorial, sin, sqrt
 
 import numpy as np
 
+from .._taylor import taylor_matmul
+
+
 @lru_cache(maxsize=8)
 def _series_table(count):
     # Polynomials in s for the normalized derivatives A^(n)(s)/n! and B^(n)(s)/n!.
@@ -82,3 +85,48 @@ def adjoint_integral_coefficients(s, order, xp, *, normalized=False):
             row = tuple(factorial(n) * entry for entry in row)
         coefficients.append(np.asarray(row, dtype=s.dtype) if scalar else row)
     return coefficients
+
+
+def _adjoint_polynomial_series(angular, xp):
+    """Return the four scalar coefficients of the adjoint integral."""
+    order = angular.shape[-2]
+    angular_row = angular[..., None, :]
+    squared = taylor_matmul(angular_row, angular_row.swapaxes(-1, -2), xp)
+    base = squared[..., 0, 0, 0]
+    derivatives = adjoint_integral_coefficients(
+        base, order - 1, xp, normalized=True,
+    )
+    derivatives = xp.stack([xp.stack(row, axis=-1) for row in derivatives], axis=-2)
+
+    # Compose the scalar coefficient functions with s(t) about s(0).
+    one = xp.concatenate((xp.ones_like(squared[..., :1, :, :]),
+                          xp.zeros_like(squared[..., 1:, :, :])), axis=-3)
+    delta_over_t = squared[..., 1:, :, :]
+    power = one
+    powers = [one[..., 0, 0]]
+    for degree in range(1, order):
+        count = order - degree
+        power = taylor_matmul(power[..., :count, :, :], delta_over_t[..., :count, :, :], xp)
+        zeros = xp.zeros_like(squared[..., :degree, 0, 0])
+        powers.append(xp.concatenate((zeros, power[..., 0, 0]), axis=-1))
+    composition = xp.stack(powers, axis=-1)
+    return composition @ derivatives, one
+
+
+def _adjoint_polynomial_stages(coefficients, generator, xp):
+    """Return the Horner stages before the final product with the generator."""
+    identity = xp.eye(generator.shape[-1], dtype=generator.dtype)
+    stages = [coefficients[..., 3, None, None] * identity]
+    for i in range(2, -1, -1):
+        stages.append(
+            taylor_matmul(stages[-1], generator, xp) + coefficients[..., i, None, None] * identity
+        )
+    return stages
+
+
+def adjoint_integral_series(angular, generator, xp):
+    """Lift the unit adjoint integral to a Taylor coefficient series."""
+    coefficients, one = _adjoint_polynomial_series(angular, xp)
+    return taylor_matmul(_adjoint_polynomial_stages(coefficients, generator, xp)[-1], generator, xp) + (
+        one * xp.eye(generator.shape[-1], dtype=generator.dtype)
+    )

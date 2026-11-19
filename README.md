@@ -153,6 +153,30 @@ at larger angles. NumPy and JAX (including JIT) use the same coefficients and
 analytic product rules. `Jr` and its directional derivatives are smooth at π;
 the principal logarithm used for pose differences has a branch there.
 
+### CMTM from SE3 exponential coordinates
+
+Given `coordinates[..., k, :] = xi^(k)(0) / k!` in angular-first order, use:
+
+```python
+motion, jr = mr.CMTM.from_se3_exponential_coordinates(
+    coordinates, return_jacobian=True,
+)
+velocity = motion.cmvecs().cm_vecs()
+```
+
+For `order` coordinate rows, `motion` stores the pose `Exp(xi(0))` and
+`order - 1` normalized coefficients of body velocity `Jr(xi(t)) @ xi_dot(t)`.
+`jr` has shape `(..., order, 6, 6)` and stores normalized coefficients of
+`Jr(xi(t))`. To compute the Jacobian series alone, use
+`CMTM.se3_right_jacobian_coefficients(coordinates)`. Omit `return_jacobian`
+to receive just the motion. A single coordinate row creates a pose-only motion.
+
+Both methods also accept a `CMVector`. Wrap ordinary derivatives with
+`CMVector(derivatives)` or pass normalized rows directly. The methods preserve
+batch axes and support NumPy and JAX. For JAX JIT, pass `LIB="jax"`, keep the
+coefficient count and `return_jacobian` static, and return arrays from the
+traced function. The coefficient recurrences use analytic series products.
+
 ### CMTM coefficient operators
 
 CMTM block operators use `CMVector`, whose coefficients are ordinary

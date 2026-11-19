@@ -1,5 +1,6 @@
 from copy import copy
 from .._numeric import as_inexact
+from .._taylor import taylor_matmul
 from typing import TypeVar, Generic
 import numpy as np
 import jax.numpy as jnp
@@ -7,7 +8,7 @@ import math
 import jax
 
 from ..basic import cm_vec as cmvec
-from .._batch import flatten_last2, matvec
+from .._batch import array_lib, flatten_last2, matvec
 from .se3 import SE3, SE3wrench
 
 T = TypeVar('T')
@@ -370,19 +371,7 @@ class CMTM(Generic[T]):
 
     @staticmethod
     def _toeplitz_blocks_matmul_numpy(l_blocks: np.ndarray, r_blocks: np.ndarray) -> np.ndarray:
-        output_order = l_blocks.shape[-3]
-        mat_size = l_blocks.shape[-1]
-        batch_shape = np.broadcast_shapes(l_blocks.shape[:-3], r_blocks.shape[:-3])
-        dtype = np.result_type(l_blocks.dtype, r_blocks.dtype)
-        out_blocks = np.zeros(batch_shape + (output_order, mat_size, mat_size), dtype=dtype)
-
-        for k in range(output_order):
-            acc = np.zeros(batch_shape + (mat_size, mat_size), dtype=dtype)
-            for i in range(k + 1):
-                acc += l_blocks[..., i, :, :] @ r_blocks[..., k - i, :, :]
-            out_blocks[..., k, :, :] = acc
-
-        return out_blocks
+        return taylor_matmul(l_blocks, r_blocks, np)
 
     @staticmethod
     def _apply_lower_toeplitz_blocks_numpy(blocks: np.ndarray, rval: np.ndarray) -> np.ndarray:
@@ -748,6 +737,54 @@ class CMTM(Generic[T]):
 
         return CMTM(m, cmvec.CMVector.set_cmvecs(vs), LIB=LIB)
     
+    @staticmethod
+    def _se3_coordinate_coefficients(coordinates, LIB):
+        if isinstance(coordinates, cmvec.CMVector):
+            coordinates = coordinates.cm_vecs()
+        coefficients = as_inexact(coordinates, LIB)
+        if coefficients.ndim < 2 or coefficients.shape[-1] != 6 or coefficients.shape[-2] == 0:
+            raise ValueError("SE3 coordinate coefficients must have shape (..., order, 6) with order >= 1")
+        return coefficients
+
+    @staticmethod
+    def se3_right_jacobian_coefficients(coordinates, LIB: str = 'numpy'):
+        """Return the normalized Taylor coefficients of Jr(xi(t)), with shape (..., order, 6, 6).
+
+        Accept normalized angular-first coordinate rows, or a CMVector holding
+        those rows. The output has the same coefficient count as the input.
+        """
+        coefficients = CMTM._se3_coordinate_coefficients(coordinates, LIB)
+        return SE3._right_jacobian_series(coefficients, LIB)
+
+    @classmethod
+    def from_se3_exponential_coordinates(cls, coordinates, LIB: str = 'numpy', *, return_jacobian=False):
+        """Build the motion of Exp(xi(t)) from normalized Taylor coordinates.
+
+        The input has shape (..., order, 6) or is a CMVector. The pose is
+        Exp(xi[0]), and the order - 1 velocity rows represent Jr(xi(t)) xi'(t).
+        With return_jacobian=True, also return all order Jacobian rows.
+        """
+        coefficients = cls._se3_coordinate_coefficients(coordinates, LIB)
+        xp = array_lib(LIB)
+        order = coefficients.shape[-2]
+        base = SE3.set_mat(SE3.exp(coefficients[..., 0, :], LIB=LIB), LIB)
+
+        if return_jacobian:
+            jacobian = SE3._right_jacobian_series(coefficients, LIB)
+        if order == 1:
+            velocity = coefficients[..., :0, :]
+        else:
+            if return_jacobian:
+                velocity_jacobian = jacobian[..., :-1, :, :]
+            else:
+                velocity_jacobian = SE3._right_jacobian_series(coefficients[..., :-1, :], LIB)
+            scales = xp.arange(1, order).astype(coefficients.dtype)
+            derivative = coefficients[..., 1:, :] * scales[:, None]
+            velocity = taylor_matmul(velocity_jacobian, derivative[..., None], xp)[..., 0]
+
+        motion = cls(base, cmvec.CMVector.set_cmvecs(velocity), LIB=LIB)
+        return (motion, jacobian) if return_jacobian else motion
+
     @staticmethod
     def eye(T, output_order = 3):
         return CMTM(T.eye(), np.zeros((output_order-1,T.dof())))

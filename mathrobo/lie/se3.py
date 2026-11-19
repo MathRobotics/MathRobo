@@ -8,7 +8,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .._batch import array_lib, matvec, transpose_last
-from ._se3_jacobian import adjoint_integral_coefficients
+from ._se3_jacobian import adjoint_integral_coefficients, adjoint_integral_series
 from .lie_abst import LieAbstract
 from .so3 import SO3, SO3inertia, SO3wrench
 
@@ -577,6 +577,12 @@ class SE3(SnapshotState, LieAbstract):
         """Return the symmetric mixed directional derivative D²J_r(xi)[u, v]."""
         directions = (-as_inexact(u, LIB), -as_inexact(v, LIB))
         return SE3._unit_adjoint_integral(-as_inexact(xi, LIB), directions, LIB)
+
+    @staticmethod
+    def _right_jacobian_series(coordinates, LIB):
+        if coordinates.shape[-2] == 1:
+            return SE3.right_jacobian(coordinates[..., 0, :], LIB)[..., None, :, :]
+        return adjoint_integral_series(coordinates[..., :3], SE3.hat_adj(-coordinates, LIB), array_lib(LIB))
 
     @staticmethod
     def _unit_adjoint_integral(vec, directions, LIB):
