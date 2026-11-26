@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from scipy.linalg import expm
 from scipy import integrate
@@ -260,75 +261,59 @@ def test_se3_wrench_commute_adj():
     
     np.testing.assert_allclose(res1, res2)
 
-def test_se3_jac_lie_wrt_scaler():
-    v = np.random.rand(6)
-    dv = np.random.rand(6)
-    a = np.random.rand()
-    eps = 1e-8
-    
-    res = mr.jac_lie_wrt_scaler(mr.SE3, v, a, dv)
-    
-    h = mr.SE3.exp(v, a)
-    v_ = v + dv*eps
-    h_ = mr.SE3.exp(v_, a)
-    
-    dh = (h_ - h) / eps
-    
-    np.testing.assert_allclose(res, dh, 1e-3)
-    
-def test_se3_jac_lie_wrt_scaler_integ():
-    v = np.random.rand(6)
-    dv = np.random.rand(6)
-    a = np.random.rand()
-    eps = 1e-8
-    
-    def integrad(s):
-        return mr.jac_lie_wrt_scaler(mr.SE3, v, s, dv)
-    
-    res, _ = integrate.quad_vec(integrad, 0, a)
-    
-    h = mr.SE3.exp_integ(v, a)
-    v_ = v + dv*eps
-    h_ = mr.SE3.exp_integ(v_, a)
-    
-    dh = (h_ - h) / eps
-    
-    np.testing.assert_allclose(res, dh, 1e-3)
+# Central differences (truncation ~eps**2, rounding ~1e-16/eps) agree with the
+# analytic Jacobians to about 1e-9 for these inputs; atol covers entries near 0.
+FD_EPS = 1e-6
+FD_TOL = dict(rtol=1e-6, atol=1e-8)
 
-def test_se3_jac_adj_lie_wrt_scaler():
-    v = np.random.rand(6)
-    dv = np.random.rand(6)
-    a = np.random.rand()
-    eps = 1e-8
-    
+
+def _central_difference(func, v, dv, eps=FD_EPS):
+    return (func(v + dv * eps) - func(v - dv * eps)) / (2 * eps)
+
+
+def _random_inputs(seed):
+    rng = np.random.default_rng(seed)
+    return rng.random(6), rng.random(6), rng.random()
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_se3_jac_lie_wrt_scaler(seed):
+    v, dv, a = _random_inputs(seed)
+
+    res = mr.jac_lie_wrt_scaler(mr.SE3, v, a, dv)
+    dh = _central_difference(lambda x: mr.SE3.exp(x, a), v, dv)
+
+    np.testing.assert_allclose(res, dh, **FD_TOL)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_se3_jac_lie_wrt_scaler_integ(seed):
+    v, dv, a = _random_inputs(seed)
+
+    res, _ = integrate.quad_vec(lambda s: mr.jac_lie_wrt_scaler(mr.SE3, v, s, dv), 0, a)
+    dh = _central_difference(lambda x: mr.SE3.exp_integ(x, a), v, dv)
+
+    np.testing.assert_allclose(res, dh, **FD_TOL)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_se3_jac_adj_lie_wrt_scaler(seed):
+    v, dv, a = _random_inputs(seed)
+
     res = mr.jac_adj_lie_wrt_scaler(mr.SE3, v, a, dv)
-    
-    h = mr.SE3.exp_adj(v, a)
-    v_ = v + dv*eps
-    h_ = mr.SE3.exp_adj(v_, a)
-    
-    dh = (h_ - h) / eps
-    
-    np.testing.assert_allclose(res, dh, 1e-3)
-    
-def test_se3_adj_jac_adj_lie_wrt_scaler_integ():
-    v = np.random.rand(6)
-    dv = np.random.rand(6)
-    a = np.random.rand()
-    eps = 1e-8
-    
-    def integrad(s):
-        return mr.jac_adj_lie_wrt_scaler(mr.SE3, v, s, dv)
-    
-    res, _ = integrate.quad_vec(integrad, 0, a)
-    
-    h = mr.SE3.exp_integ_adj(v, a)
-    v_ = v + dv*eps
-    h_ = mr.SE3.exp_integ_adj(v_, a)
-    
-    dh = (h_ - h) / eps
-    
-    np.testing.assert_allclose(res, dh, 1e-3)
+    dh = _central_difference(lambda x: mr.SE3.exp_adj(x, a), v, dv)
+
+    np.testing.assert_allclose(res, dh, **FD_TOL)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_se3_adj_jac_adj_lie_wrt_scaler_integ(seed):
+    v, dv, a = _random_inputs(seed)
+
+    res, _ = integrate.quad_vec(lambda s: mr.jac_adj_lie_wrt_scaler(mr.SE3, v, s, dv), 0, a)
+    dh = _central_difference(lambda x: mr.SE3.exp_integ_adj(x, a), v, dv)
+
+    np.testing.assert_allclose(res, dh, **FD_TOL)
 
 def test_se3_mat_var_x_arb_vec():
     mat = mr.SE3.rand()

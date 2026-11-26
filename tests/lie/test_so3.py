@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from scipy.linalg import expm
 from scipy import integrate
@@ -133,22 +134,17 @@ def test_so3_matmul_vec():
 
     np.testing.assert_allclose(res, r @ vec, rtol=1e-15, atol=1e-15)
     
-def test_so3_jac_lie_wrt_scaler():
-    v = np.random.rand(3)
-    dv = np.random.rand(3)
-    a = np.random.rand()
-    eps = 1e-8
-    
+@pytest.mark.parametrize("seed", range(5))
+def test_so3_jac_lie_wrt_scaler(seed):
+    rng = np.random.default_rng(seed)
+    v, dv, a = rng.random(3), rng.random(3), rng.random()
+    eps = 1e-6
+
     res = mr.jac_lie_wrt_scaler(mr.SO3, v, a, dv)
-    
-    r = mr.SO3.exp(v, a)
-    v_ = v + dv*eps
-    r_ = mr.SO3.exp(v_, a)
-    
-    dr = (r_ - r) / eps
-    
-    np.testing.assert_allclose(res, dr, 1e-3)
-    
+    dr = (mr.SO3.exp(v + dv * eps, a) - mr.SO3.exp(v - dv * eps, a)) / (2 * eps)
+
+    np.testing.assert_allclose(res, dr, rtol=1e-6, atol=1e-8)
+
 def test_so3_jac_lie_wrt_scaler_integ():
     rng = np.random.default_rng(0)
     v = rng.random(3)
