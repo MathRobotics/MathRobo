@@ -11,6 +11,7 @@ from ..basic import cm_vec as cmvec
 from .. import _random
 from .._batch import array_lib, flatten_last2, matvec
 from .se3 import SE3, SE3wrench
+from .so3 import SO3
 from ._se3_jacobian import adjoint_integral_series_jvp, adjoint_integral_series_vjp
 from .lie_abst import check_frame
 
@@ -743,14 +744,80 @@ class CMTM(Generic[T]):
 
         return CMTM(m, cmvec.CMVector.set_cmvecs(vs), LIB=LIB)
     
+    # Exponential-coordinate motions. Each group supplies its rotation part (whose
+    # squared norm is the angle squared s) and the generator K(v) = ad_v.
+    _EXPONENTIAL_GROUPS = {
+        'SE3': (SE3, lambda v: v[..., :3], lambda v, LIB: SE3.hat_adj(v, LIB)),
+        'SO3': (SO3, lambda v: v, lambda v, LIB: SO3.hat(v, LIB)),
+    }
+
     @staticmethod
-    def _se3_coordinate_coefficients(coordinates, LIB):
+    def _coordinate_coefficients(coordinates, name, LIB):
         if isinstance(coordinates, cmvec.CMVector):
             coordinates = coordinates.cm_vecs()
         coefficients = as_inexact(coordinates, LIB)
-        if coefficients.ndim < 2 or coefficients.shape[-1] != 6 or coefficients.shape[-2] == 0:
-            raise ValueError("SE3 coordinate coefficients must have shape (..., order, 6) with order >= 1")
+        dof = CMTM._EXPONENTIAL_GROUPS[name][0].dof()
+        if coefficients.ndim < 2 or coefficients.shape[-1] != dof or coefficients.shape[-2] == 0:
+            raise ValueError(f"{name} coordinate coefficients must have shape (..., order, {dof}) with order >= 1")
         return coefficients
+
+    @staticmethod
+    def _se3_coordinate_coefficients(coordinates, LIB):
+        return CMTM._coordinate_coefficients(coordinates, 'SE3', LIB)
+
+    @staticmethod
+    def _right_jacobian_coefficients_jvp(name, coordinates, direction, LIB):
+        group, angular, generator = CMTM._EXPONENTIAL_GROUPS[name]
+        coordinates = CMTM._coordinate_coefficients(coordinates, name, LIB)
+        direction = CMTM._coordinate_coefficients(direction, name, LIB)
+        if direction.shape != coordinates.shape:
+            raise ValueError("direction must have the same coefficient shape as coordinates")
+        coordinates, direction = common_inexact(coordinates, direction, LIB)
+        return adjoint_integral_series_jvp(
+            angular(coordinates), generator(-coordinates, LIB),
+            angular(direction), generator(-direction, LIB), array_lib(LIB),
+        )
+
+    @staticmethod
+    def _right_jacobian_coefficients_vjp(name, coordinates, cotangent, LIB):
+        group, angular, generator = CMTM._EXPONENTIAL_GROUPS[name]
+        coordinates = CMTM._coordinate_coefficients(coordinates, name, LIB)
+        coordinates, cotangent = common_inexact(coordinates, cotangent, LIB)
+        dof = group.dof()
+        if cotangent.shape != coordinates.shape + (dof,):
+            raise ValueError("cotangent must have the right Jacobian coefficient shape")
+        xp = array_lib(LIB)
+        angular_cotangent, generator_cotangent = adjoint_integral_series_vjp(
+            angular(coordinates), generator(-coordinates, LIB), cotangent, xp,
+        )
+        # Both maps are linear in the coordinates; pull back through each basis vector.
+        identity = xp.eye(dof, dtype=coordinates.dtype)
+        coordinate_cotangent = xp.einsum("...ij,kij->...k", generator_cotangent, generator(-identity, LIB))
+        return coordinate_cotangent + xp.einsum("...i,ki->...k", angular_cotangent, angular(identity))
+
+    @classmethod
+    def _from_exponential_coordinates(cls, name, coordinates, LIB, return_jacobian):
+        group = CMTM._EXPONENTIAL_GROUPS[name][0]
+        coefficients = cls._coordinate_coefficients(coordinates, name, LIB)
+        xp = array_lib(LIB)
+        order = coefficients.shape[-2]
+        base = group.set_mat(group.exp(coefficients[..., 0, :], LIB=LIB), LIB)
+
+        if return_jacobian:
+            jacobian = group._right_jacobian_series(coefficients, LIB)
+        if order == 1:
+            velocity = coefficients[..., :0, :]
+        else:
+            if return_jacobian:
+                velocity_jacobian = jacobian[..., :-1, :, :]
+            else:
+                velocity_jacobian = group._right_jacobian_series(coefficients[..., :-1, :], LIB)
+            scales = xp.arange(1, order).astype(coefficients.dtype)
+            derivative = coefficients[..., 1:, :] * scales[:, None]
+            velocity = taylor_matmul(velocity_jacobian, derivative[..., None], xp)[..., 0]
+
+        motion = cls(base, cmvec.CMVector.set_cmvecs(velocity), LIB=LIB)
+        return (motion, jacobian) if return_jacobian else motion
 
     @staticmethod
     def se3_right_jacobian_coefficients(coordinates, LIB: str = 'numpy'):
@@ -759,7 +826,7 @@ class CMTM(Generic[T]):
         Accept normalized angular-first coordinate rows, or a CMVector holding
         those rows. The output has the same coefficient count as the input.
         """
-        coefficients = CMTM._se3_coordinate_coefficients(coordinates, LIB)
+        coefficients = CMTM._coordinate_coefficients(coordinates, 'SE3', LIB)
         return SE3._right_jacobian_series(coefficients, LIB)
 
     @staticmethod
@@ -769,15 +836,7 @@ class CMTM(Generic[T]):
         Coordinates and direction are normalized Taylor rows with matching
         shapes. Return the coefficient variations with shape (..., order, 6, 6).
         """
-        coordinates = CMTM._se3_coordinate_coefficients(coordinates, LIB)
-        direction = CMTM._se3_coordinate_coefficients(direction, LIB)
-        if direction.shape != coordinates.shape:
-            raise ValueError("direction must have the same coefficient shape as coordinates")
-        coordinates, direction = common_inexact(coordinates, direction, LIB)
-        return adjoint_integral_series_jvp(
-            coordinates[..., :3], SE3.hat_adj(-coordinates, LIB),
-            direction[..., :3], SE3.hat_adj(-direction, LIB), array_lib(LIB),
-        )
+        return CMTM._right_jacobian_coefficients_jvp('SE3', coordinates, direction, LIB)
 
     @staticmethod
     def se3_right_jacobian_coefficients_vjp(coordinates, cotangent, LIB: str = 'numpy'):
@@ -787,17 +846,7 @@ class CMTM(Generic[T]):
         (..., order, 6) in the same normalized coordinates, using the
         unweighted sum over coefficient rows and matrix entries as the pairing.
         """
-        coordinates = CMTM._se3_coordinate_coefficients(coordinates, LIB)
-        coordinates, cotangent = common_inexact(coordinates, cotangent, LIB)
-        if cotangent.shape != coordinates.shape + (6,):
-            raise ValueError("cotangent must have the right Jacobian coefficient shape")
-        xp = array_lib(LIB)
-        angular, generator = adjoint_integral_series_vjp(
-            coordinates[..., :3], SE3.hat_adj(-coordinates, LIB), cotangent, xp,
-        )
-        basis = SE3.hat_adj(-xp.eye(6, dtype=coordinates.dtype), LIB)
-        coordinate_cotangent = xp.einsum("...ij,kij->...k", generator, basis)
-        return coordinate_cotangent + xp.concatenate((angular, xp.zeros_like(angular)), axis=-1)
+        return CMTM._right_jacobian_coefficients_vjp('SE3', coordinates, cotangent, LIB)
 
     @classmethod
     def from_se3_exponential_coordinates(cls, coordinates, LIB: str = 'numpy', *, return_jacobian=False):
@@ -807,26 +856,32 @@ class CMTM(Generic[T]):
         Exp(xi[0]), and the order - 1 velocity rows represent Jr(xi(t)) xi'(t).
         With return_jacobian=True, also return all order Jacobian rows.
         """
-        coefficients = cls._se3_coordinate_coefficients(coordinates, LIB)
-        xp = array_lib(LIB)
-        order = coefficients.shape[-2]
-        base = SE3.set_mat(SE3.exp(coefficients[..., 0, :], LIB=LIB), LIB)
+        return cls._from_exponential_coordinates('SE3', coordinates, LIB, return_jacobian)
 
-        if return_jacobian:
-            jacobian = SE3._right_jacobian_series(coefficients, LIB)
-        if order == 1:
-            velocity = coefficients[..., :0, :]
-        else:
-            if return_jacobian:
-                velocity_jacobian = jacobian[..., :-1, :, :]
-            else:
-                velocity_jacobian = SE3._right_jacobian_series(coefficients[..., :-1, :], LIB)
-            scales = xp.arange(1, order).astype(coefficients.dtype)
-            derivative = coefficients[..., 1:, :] * scales[:, None]
-            velocity = taylor_matmul(velocity_jacobian, derivative[..., None], xp)[..., 0]
+    @staticmethod
+    def so3_right_jacobian_coefficients(coordinates, LIB: str = 'numpy'):
+        """SO3 counterpart of ``se3_right_jacobian_coefficients``: (..., order, 3) -> (..., order, 3, 3).
 
-        motion = cls(base, cmvec.CMVector.set_cmvecs(velocity), LIB=LIB)
-        return (motion, jacobian) if return_jacobian else motion
+        Equal to the rotation block of the SE3 result for zero translation,
+        computed with 3 x 3 instead of 6 x 6 generators.
+        """
+        coefficients = CMTM._coordinate_coefficients(coordinates, 'SO3', LIB)
+        return SO3._right_jacobian_series(coefficients, LIB)
+
+    @staticmethod
+    def so3_right_jacobian_coefficients_jvp(coordinates, direction, LIB: str = 'numpy'):
+        """SO3 counterpart of ``se3_right_jacobian_coefficients_jvp``."""
+        return CMTM._right_jacobian_coefficients_jvp('SO3', coordinates, direction, LIB)
+
+    @staticmethod
+    def so3_right_jacobian_coefficients_vjp(coordinates, cotangent, LIB: str = 'numpy'):
+        """SO3 counterpart of ``se3_right_jacobian_coefficients_vjp``."""
+        return CMTM._right_jacobian_coefficients_vjp('SO3', coordinates, cotangent, LIB)
+
+    @classmethod
+    def from_so3_exponential_coordinates(cls, coordinates, LIB: str = 'numpy', *, return_jacobian=False):
+        """SO3 counterpart of ``from_se3_exponential_coordinates`` for rows (..., order, 3)."""
+        return cls._from_exponential_coordinates('SO3', coordinates, LIB, return_jacobian)
 
     @staticmethod
     def eye(T, output_order = 3):

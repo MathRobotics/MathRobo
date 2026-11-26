@@ -1,4 +1,9 @@
-"""Coefficients of the SE(3) adjoint integral and their angle derivatives."""
+"""Coefficients of the unit adjoint integral and their angle derivatives.
+
+For SE(3), K = ad_xi has a minimal polynomial dividing K (K² + s I)², with s
+the squared rotation angle. For SO(3), K = hat(phi) satisfies K³ = -s K, so
+the same four-coefficient polynomial applies to 3 x 3 generators unchanged.
+"""
 
 from functools import lru_cache
 from math import comb, factorial, sin, sqrt
@@ -170,3 +175,61 @@ def adjoint_integral_series_vjp(angular, generator, cotangent, xp):
     ds = taylor_matmul_left_vjp(rates[..., None, :], dc[..., None, :], xp)
     angular_cotangent = taylor_matmul_left_vjp(angular[..., :, None], ds, xp)
     return 2 * angular_cotangent[..., 0, :], generator_cotangent
+
+
+def unit_adjoint_integral(vec, directions, angular, generator, xp):
+    """Integral over [0, 1] of exp(t K(vec)), or its directional derivatives.
+
+    ``angular(v)`` returns the rotation part whose squared norm is s, and
+    ``generator(v)`` the linear map K(v); both are evaluated for ``vec`` and
+    for each of the zero, one or two ``directions``.
+    """
+    inputs = (vec, *directions)
+    order = len(directions)
+    dtype = xp.result_type(*(value.dtype for value in inputs))
+    vec, *directions = (value.astype(dtype, copy=False) for value in inputs)
+    rotation = angular(vec)
+    theta_squared = xp.sum(rotation * rotation, axis=-1)
+    coefficients = adjoint_integral_coefficients(theta_squared, order, xp)
+    K = generator(vec)
+    identity = xp.eye(K.shape[-1], dtype=dtype)
+
+    if order == 0:
+        a1, a2, a3, a4 = coefficients[0]
+        polynomial = a4[..., None, None] * K + a3[..., None, None] * identity
+        polynomial = polynomial @ K + a2[..., None, None] * identity
+        polynomial = polynomial @ K + a1[..., None, None] * identity
+        return identity + polynomial @ K
+
+    u = directions[0]
+    K_u = generator(u)
+    theta_u = 2 * xp.sum(rotation * angular(u), axis=-1)
+    if order == 2:
+        v = directions[1]
+        K_v = generator(v)
+        theta_v = 2 * xp.sum(rotation * angular(v), axis=-1)
+        theta_uv = 2 * xp.sum(angular(u) * angular(v), axis=-1)
+
+    # Horner evaluation with the product and chain rules at each step.
+    c, dc = coefficients[0][3], coefficients[1][3]
+    value = c[..., None, None] * identity
+    value_u = (dc * theta_u)[..., None, None] * identity
+    if order == 2:
+        value_v = (dc * theta_v)[..., None, None] * identity
+        dc_uv = coefficients[2][3] * theta_u * theta_v + dc * theta_uv
+        value_uv = dc_uv[..., None, None] * identity
+
+    for i in range(2, -1, -1):
+        c, dc = coefficients[0][i], coefficients[1][i]
+        if order == 2:
+            dc_uv = coefficients[2][i] * theta_u * theta_v + dc * theta_uv
+            value_uv = (value_uv @ K + value_u @ K_v
+                        + value_v @ K_u + dc_uv[..., None, None] * identity)
+            value_v = (value_v @ K + value @ K_v
+                       + (dc * theta_v)[..., None, None] * identity)
+        value_u = (value_u @ K + value @ K_u
+                   + (dc * theta_u)[..., None, None] * identity)
+        value = value @ K + c[..., None, None] * identity
+    if order == 2:
+        return value_uv @ K + value_u @ K_v + value_v @ K_u
+    return value_u @ K + value @ K_u

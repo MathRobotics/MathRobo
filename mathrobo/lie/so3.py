@@ -8,6 +8,7 @@ import jax.numpy as jnp
 
 from .. import _random
 from .._batch import array_lib, matvec, transpose_last
+from ._se3_jacobian import adjoint_integral_series, unit_adjoint_integral
 from .lie_abst import LieAbstract, check_frame
 
 __all__ = ['SO3', 'SO3wrench', 'SO3inertia']
@@ -349,6 +350,36 @@ class SO3(SnapshotState, LieAbstract):
     @staticmethod
     def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.exp_integ(vec, a, LIB)
+
+    @classmethod
+    def right_jacobian(cls, phi, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return Jr(phi) with ``Exp(phi + d) ~= Exp(phi) Exp(Jr(phi) d)``, shape (..., 3, 3)."""
+        return cls._unit_integral(-as_inexact(phi, LIB), (), LIB)
+
+    @classmethod
+    def right_jacobian_directional(cls, phi, u, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return DJ_r(phi)[u] for a direction in the same rotation coordinates."""
+        return cls._unit_integral(-as_inexact(phi, LIB), (-as_inexact(u, LIB),), LIB)
+
+    @classmethod
+    def right_jacobian_second_directional(cls, phi, u, v, LIB: str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Return the symmetric mixed directional derivative D²J_r(phi)[u, v]."""
+        directions = (-as_inexact(u, LIB), -as_inexact(v, LIB))
+        return cls._unit_integral(-as_inexact(phi, LIB), directions, LIB)
+
+    @classmethod
+    def _unit_integral(cls, vec, directions, LIB):
+        """Integral over [0, 1] of exp(t hat(vec)) with 3 x 3 generators."""
+        if any(value.ndim == 0 or value.shape[-1] != 3 for value in (vec, *directions)):
+            raise ValueError("Input vector and directions must have shape (..., 3)")
+        return unit_adjoint_integral(vec, directions, lambda v: v,
+                                     lambda v: cls.hat(v, LIB), array_lib(LIB))
+
+    @classmethod
+    def _right_jacobian_series(cls, coordinates, LIB):
+        if coordinates.shape[-2] == 1:
+            return cls.right_jacobian(coordinates[..., 0, :], LIB)[..., None, :, :]
+        return adjoint_integral_series(coordinates, cls.hat(-coordinates, LIB), array_lib(LIB))
 
     @staticmethod
     def sub_tan_vec(val0 : 'SO3', val1 : 'SO3', 

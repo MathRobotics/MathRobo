@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from .. import _random
 from .._batch import array_lib, matvec, transpose_last
-from ._se3_jacobian import adjoint_integral_coefficients, adjoint_integral_series
+from ._se3_jacobian import adjoint_integral_series, unit_adjoint_integral
 from .lie_abst import LieAbstract, check_frame
 from .so3 import SO3, SO3inertia, SO3wrench
 
@@ -587,58 +587,10 @@ class SE3(SnapshotState, LieAbstract):
     @staticmethod
     def _unit_adjoint_integral(vec, directions, LIB):
         """Evaluate the adjoint integral over [0, 1] or its directional derivatives."""
-        xp = array_lib(LIB)
-        inputs = (vec, *directions)
-        if any(value.ndim == 0 or value.shape[-1] != 6 for value in inputs):
+        if any(value.ndim == 0 or value.shape[-1] != 6 for value in (vec, *directions)):
             raise ValueError("Input vector and directions must have shape (..., 6)")
-        order = len(directions)
-        dtype = xp.result_type(*(value.dtype for value in inputs))
-        vec, *directions = (value.astype(dtype, copy=False) for value in inputs)
-        angular = vec[..., :3]
-        theta_squared = xp.sum(angular * angular, axis=-1)
-        coefficients = adjoint_integral_coefficients(theta_squared, order, xp)
-        generator = SE3.hat_adj(vec, LIB)
-        identity = xp.eye(6, dtype=dtype)
-
-        if order == 0:
-            a1, a2, a3, a4 = coefficients[0]
-            polynomial = a4[..., None, None] * generator + a3[..., None, None] * identity
-            polynomial = polynomial @ generator + a2[..., None, None] * identity
-            polynomial = polynomial @ generator + a1[..., None, None] * identity
-            return identity + polynomial @ generator
-
-        u = directions[0]
-        generator_u = SE3.hat_adj(u, LIB)
-        theta_u = 2 * xp.sum(angular * u[..., :3], axis=-1)
-        if order == 2:
-            v = directions[1]
-            generator_v = SE3.hat_adj(v, LIB)
-            theta_v = 2 * xp.sum(angular * v[..., :3], axis=-1)
-            theta_uv = 2 * xp.sum(u[..., :3] * v[..., :3], axis=-1)
-
-        # Horner evaluation with the product and chain rules at each step.
-        c, dc = coefficients[0][3], coefficients[1][3]
-        value = c[..., None, None] * identity
-        value_u = (dc * theta_u)[..., None, None] * identity
-        if order == 2:
-            value_v = (dc * theta_v)[..., None, None] * identity
-            dc_uv = coefficients[2][3] * theta_u * theta_v + dc * theta_uv
-            value_uv = dc_uv[..., None, None] * identity
-
-        for i in range(2, -1, -1):
-            c, dc = coefficients[0][i], coefficients[1][i]
-            if order == 2:
-                dc_uv = coefficients[2][i] * theta_u * theta_v + dc * theta_uv
-                value_uv = (value_uv @ generator + value_u @ generator_v
-                            + value_v @ generator_u + dc_uv[..., None, None] * identity)
-                value_v = (value_v @ generator + value @ generator_v
-                           + (dc * theta_v)[..., None, None] * identity)
-            value_u = (value_u @ generator + value @ generator_u
-                       + (dc * theta_u)[..., None, None] * identity)
-            value = value @ generator + c[..., None, None] * identity
-        if order == 2:
-            return value_uv @ generator + value_u @ generator_v + value_v @ generator_u
-        return value_u @ generator + value @ generator_u
+        return unit_adjoint_integral(vec, directions, lambda v: v[..., :3],
+                                     lambda v: SE3.hat_adj(v, LIB), array_lib(LIB))
 
     @staticmethod
     def sub_tan_vec(val0 : 'SE3', val1 : 'SE3', 
