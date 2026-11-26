@@ -6,6 +6,7 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 
+from .. import _random
 from .._batch import array_lib, matvec, transpose_last
 from .lie_abst import LieAbstract, check_frame
 
@@ -373,15 +374,12 @@ class SO3(SnapshotState, LieAbstract):
             raise TypeError("Right operand should be SO3, numpy.ndarray, or jax.ndarray")
 
     @classmethod
-    def rand(cls, LIB : str = 'numpy') -> 'SO3':
-        if LIB == 'jax':
-            v = jax.random.uniform(jax.random.PRNGKey(0), (3,))
-            m = SO3.exp(v, LIB='jax')
-            return cls(m, LIB)
-        elif LIB == 'numpy':
-            v = np.random.rand(3) 
-            m = SO3.exp(v)
-            return cls(m, LIB)
+    def rand(cls, LIB : str = 'numpy', key=None) -> 'SO3':
+        """Uniformly distributed (Haar) rotation; see ``mathrobo._random`` for ``key``."""
+        array_lib(LIB)  # reject unsupported backends early
+        q = _random.normal(key, (4,), LIB)
+        q = q / array_lib(LIB).linalg.norm(q)
+        return cls(SO3.quaternion_to_mat(q, LIB), LIB)
 
     def __repr__(self):
         return f"SO3(\nrot=\n{self._rot},\nLIB='{self.lib}')"

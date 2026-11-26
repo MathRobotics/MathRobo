@@ -8,6 +8,7 @@ import math
 import jax
 
 from ..basic import cm_vec as cmvec
+from .. import _random
 from .._batch import array_lib, flatten_last2, matvec
 from .se3 import SE3, SE3wrench
 from ._se3_jacobian import adjoint_integral_series_jvp, adjoint_integral_series_vjp
@@ -829,8 +830,10 @@ class CMTM(Generic[T]):
         return CMTM(T.eye(), np.zeros((output_order-1,T.dof())))
     
     @staticmethod
-    def rand(T, output_order = 3):
-        return CMTM(T.rand(), np.random.rand(output_order-1,T.dof()))  
+    def rand(T, output_order = 3, key=None):
+        """Random element of ``T`` with derivatives uniform in [0, 1) (NumPy backend)."""
+        pose_key, vec_key = _random.split(key, 'numpy', 2)
+        return CMTM(T.rand(key=pose_key), _random.uniform(vec_key, (output_order-1, T.dof()), 'numpy'))
     
     def elem_mat(self):
         return self._mat.mat()

@@ -4,6 +4,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
+from .. import _random
 from .._batch import array_lib, matvec, transpose_last
 from .._numeric import as_inexact
 from .._storage import SnapshotState, snapshot, same_shape, readonly_view
@@ -73,10 +74,10 @@ class SO2(SnapshotState, LieAbstract):
         return cls(array_lib(LIB).eye(2), LIB)
 
     @classmethod
-    def rand(cls, LIB='numpy'):
-        angle = (jax.random.uniform(jax.random.PRNGKey(0), (), minval=-jnp.pi, maxval=jnp.pi)
-                 if LIB == 'jax' else np.random.uniform(-np.pi, np.pi))
-        return cls.set_angle(angle, LIB)
+    def rand(cls, LIB='numpy', key=None):
+        """Uniform angle in [-pi, pi); see ``mathrobo._random`` for ``key``."""
+        array_lib(LIB)  # reject unsupported backends early
+        return cls.set_angle(_random.uniform(key, (), LIB, -np.pi, np.pi), LIB)
 
     def inv(self):
         return type(self)(self.mat_inv(), self.lib)

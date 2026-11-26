@@ -7,6 +7,7 @@ import jax
 import numpy as np
 import jax.numpy as jnp
 
+from .. import _random
 from .._batch import array_lib, matvec, transpose_last
 from ._se3_jacobian import adjoint_integral_coefficients, adjoint_integral_series
 from .lie_abst import LieAbstract, check_frame
@@ -689,12 +690,12 @@ class SE3(SnapshotState, LieAbstract):
             raise TypeError("Right operand should be SE3, numpy.ndarray, or jax.ndarray")
 
     @classmethod
-    def rand(cls, LIB = 'numpy') -> 'SE3':
-        if LIB == 'jax':
-            p = jax.random.uniform(jax.random.PRNGKey(0), (3,))
-        elif LIB == 'numpy':
-            p = np.random.rand(3) 
-        return cls(cls._cls_so3.rand(LIB).mat(), p, LIB)
+    def rand(cls, LIB = 'numpy', key=None) -> 'SE3':
+        """Haar rotation and position uniform in [0, 1)^3; see ``mathrobo._random``."""
+        array_lib(LIB)  # reject unsupported backends early
+        rot_key, pos_key = _random.split(key, LIB, 2)
+        rot = cls._cls_so3.rand(LIB, key=rot_key).mat()
+        return cls(rot, _random.uniform(pos_key, (3,), LIB), LIB)
     
     def __repr__(self):
         return f"SE3(\nrot=\n{self._rot},\npos=\n{self._pos},\nLIB='{self.lib}')"
