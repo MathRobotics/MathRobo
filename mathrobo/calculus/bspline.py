@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.interpolate import BSpline
 
+__all__ = ['build_bspline_model', 'bspline_curve', 'bspline_jacobian', 'jac_numerical']
+
+
 # ----------------------------------------------------------------------
 def build_bspline_model(knots, control, degree: int):
         """

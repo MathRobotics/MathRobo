@@ -10,6 +10,9 @@ from .. import _random
 from .._batch import array_lib, matvec, transpose_last
 from .lie_abst import LieAbstract, check_frame
 
+__all__ = ['SO3', 'SO3wrench', 'SO3inertia']
+
+
 class SO3(SnapshotState, LieAbstract):
     _dof = 3
     _snapshot_fields = ('_rot',)

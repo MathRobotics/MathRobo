@@ -4,6 +4,9 @@
 
 import numpy as np
 
+__all__ = ['numerical_grad', 'numerical_difference']
+
+
 def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, update_func = None, direction=None):
         """
         Unified finite difference backend to compute either:

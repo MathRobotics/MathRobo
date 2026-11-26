@@ -143,7 +143,7 @@ def test_cmtm_se3_apply_methods_match_dense_matrices():
     rhs_mat = np.random.rand(batch, cmtm.size(), 4)
     adj_rhs = np.random.rand(batch, cmtm.adj_size())
     adj_rhs_mat = np.random.rand(batch, cmtm.adj_size(), 3)
-    cm_rhs = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
+    cm_rhs = mr.CMVector(np.random.rand(batch, order, 6))
 
     np.testing.assert_allclose(
         cmtm.apply_mat(rhs),
@@ -226,7 +226,7 @@ def test_cmtm_apply_methods_match_dense_unbatched():
         np.testing.assert_allclose(cmtm.apply_tangent_mat_cm(adj_rhs), cmtm.tangent_mat_cm() @ adj_rhs, rtol=1e-12, atol=1e-12)
         np.testing.assert_allclose(cmtm.apply_tangent_mat_cm(adj_rhs_mat), cmtm.tangent_mat_cm() @ adj_rhs_mat, rtol=1e-12, atol=1e-12)
 
-        cm_rhs = mr.cmvec.CMVector(np.random.rand(order, 6))
+        cm_rhs = mr.CMVector(np.random.rand(order, 6))
         np.testing.assert_allclose(
             cmtm.apply_cmvector(cm_rhs).cm_vec(),
             cmtm.mat_adj() @ cm_rhs.cm_vec(),
@@ -287,7 +287,7 @@ def test_cmtm_apply_methods_reject_invalid_shapes():
     with pytest.raises(ValueError):
         cmtm.apply_tangent_mat_cm(np.zeros(cmtm.adj_size() + 1))
     with pytest.raises(ValueError):
-        cmtm.apply_cmvector(mr.cmvec.CMVector(np.zeros((cmtm._n - 1, cmtm._mat_adj_size))))
+        cmtm.apply_cmvector(mr.CMVector(np.zeros((cmtm._n - 1, cmtm._mat_adj_size))))
 
 
 def test_cmtm_batch_hat_adj_contract():
@@ -353,16 +353,16 @@ def test_cmtm_se3_batch_sub_and_variation():
         ]),
     )
 
-    arb_vec = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
-    tan_var_vec = mr.cmvec.CMVector(np.random.rand(batch, order, 6))
+    arb_vec = mr.CMVector(np.random.rand(batch, order, 6))
+    tan_var_vec = mr.CMVector(np.random.rand(batch, order, 6))
     for frame in ["bframe", "fframe"]:
         np.testing.assert_allclose(
             left.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame).cm_vec(),
             np.stack([
                 mr.CMTM[mr.SE3](mr.SE3.set_mat(left.elem_mat()[i]), left.vecs()[i])
                 .mat_var_x_arb_vec(
-                    mr.cmvec.CMVector(arb_vec.vecs()[i]),
-                    mr.cmvec.CMVector(tan_var_vec.vecs()[i]),
+                    mr.CMVector(arb_vec.vecs()[i]),
+                    mr.CMVector(tan_var_vec.vecs()[i]),
                     frame,
                 )
                 .cm_vec()
@@ -393,9 +393,9 @@ def test_se3_batch_hat_commute():
 
 def test_cmvector_batch():
     vecs = np.random.rand(5, 3, 6)
-    cm = mr.cmvec.CMVector(vecs)
+    cm = mr.CMVector(vecs)
 
     assert cm.vec().shape == (5, 18)
     assert cm.cm_vec().shape == (5, 18)
     np.testing.assert_allclose(cm.vecs(), vecs)
-    np.testing.assert_allclose(mr.cmvec.CMVector.set_cmvecs(cm.cm_vecs()).vecs(), vecs)
+    np.testing.assert_allclose(mr.CMVector.set_cmvecs(cm.cm_vecs()).vecs(), vecs)

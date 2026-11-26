@@ -354,8 +354,8 @@ def test_cmtm_so3_tangent_mat_cm():
 
 def test_cmtm_so3_mat_var_x_arb_vec():
     mat = mr.CMTM.rand(mr.SO3, test_order)
-    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
-    tan_var_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+    arb_vec = mr.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+    tan_var_vec = mr.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
 
     res = mat.mat_var_x_arb_vec(arb_vec, tan_var_vec, frame='bframe').cm_vec()
 
@@ -375,7 +375,7 @@ def test_cmtm_so3_mat_var_x_arb_vec():
 
 def test_cmtm_so3_mat_var_x_arb_vec_jacob():
     mat = mr.CMTM.rand(mr.SO3, test_order)
-    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
+    arb_vec = mr.CMVector(np.random.rand(mat.adj_size()).reshape(test_order, -1))
 
     res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')
     sol = mat.mat_adj() @ mr.CMTM.hat_cm_commute_adj(mr.SO3, arb_vec)
@@ -390,14 +390,14 @@ def test_cmtm_so3_mat_var_x_arb_vec_jacob():
 def test_cmtm_so3_mat_var_x_arb_vec_num_jacob():
     order = 10
     mat = mr.CMTM.rand(mr.SO3, order)
-    arb_vec = mr.cmvec.CMVector(np.random.rand(mat.adj_size()).reshape(order, -1))
+    arb_vec = mr.CMVector(np.random.rand(mat.adj_size()).reshape(order, -1))
 
     def func(dvec):
         '''
             dX = X @ hat(dvec)
             return (X + dX) @ arb_vec
         '''
-        v = mr.cmvec.CMVector.set_cmvecs(dvec.reshape(mat._n, -1))
+        v = mr.CMVector.set_cmvecs(dvec.reshape(mat._n, -1))
         return mat.mat_adj() @ (np.eye(mat.adj_size()) + mr.CMTM.hat_cm_adj(mr.SO3, v)) @ arb_vec.cm_vec()
 
     res = mat.mat_var_x_arb_vec_jacob(arb_vec, frame='bframe')

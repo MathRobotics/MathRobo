@@ -10,6 +10,9 @@ from .._batch import flatten_last2
 from .._numeric import as_inexact
 
 
+__all__ = ['CMVector']
+
+
 # Shared coefficients through the tenth derivative (orders 0 through 10).
 _FACTORIALS = np.asarray([math.factorial(i) for i in range(11)], dtype=np.float64)
 _INVERSE_FACTORIALS = 1.0 / _FACTORIALS

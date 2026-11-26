@@ -11,6 +11,9 @@ from .._storage import SnapshotState, snapshot, same_shape, readonly_view
 from .lie_abst import LieAbstract
 
 
+__all__ = ['SO2']
+
+
 class SO2(SnapshotState, LieAbstract):
     _dof = 1
     _snapshot_fields = ('_rot',)

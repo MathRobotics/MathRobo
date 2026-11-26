@@ -13,6 +13,9 @@ from ._se3_jacobian import adjoint_integral_coefficients, adjoint_integral_serie
 from .lie_abst import LieAbstract, check_frame
 from .so3 import SO3, SO3inertia, SO3wrench
 
+__all__ = ['SE3', 'SE3wrench', 'SE3inertia']
+
+
 class SE3(SnapshotState, LieAbstract):
     _dof = 6
     _cls_so3 = SO3

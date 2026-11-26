@@ -6,6 +6,9 @@ import jax.numpy as jnp
 
 from .._batch import flatten_last2
 
+__all__ = ['Factorial', 'FactorialVector']
+
+
 class Factorial:
     @staticmethod
     def _factorial_scales(

@@ -1,6 +1,9 @@
 import math
 import numpy as np
 
+__all__ = ['build_integrator']
+
+
 def build_integrator(dof, order, dt, method="euler"):
         """
         Construct integration matrices for various numerical integration methods.

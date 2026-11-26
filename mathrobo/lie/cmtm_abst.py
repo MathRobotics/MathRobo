@@ -14,6 +14,9 @@ from .se3 import SE3, SE3wrench
 from ._se3_jacobian import adjoint_integral_series_jvp, adjoint_integral_series_vjp
 from .lie_abst import check_frame
 
+__all__ = ['CMTM']
+
+
 T = TypeVar('T')
 
 class CMTM(Generic[T]):

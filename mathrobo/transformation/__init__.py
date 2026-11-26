@@ -1,5 +1,7 @@
-#!/usr/bin/env python3.9
-# -*- coding: utf-8 -*-
-# 2024.08.17 Created by T.Ishigaki
-
+"""Public API re-exported from the submodules' ``__all__`` lists."""
+from . import rotation as _rotation
 from .rotation import *
+
+__all__ = [
+    *_rotation.__all__,
+]
