@@ -6,109 +6,103 @@ import numpy as np
 
 __all__ = ['numerical_grad', 'numerical_difference']
 
+# Error order p of each stencil. The default step eps_mach**(1/(p+1)) balances
+# truncation (~h**p) against rounding (~eps_mach/h) for well-scaled functions.
+_ORDERS = {"forward": 1, "central": 2, "fourth": 4}
 
-def _finite_difference(func, x, eps=1e-8, method="central", sub_func=None, update_func = None, direction=None):
+
+def _default_eps(method):
+        if method not in _ORDERS:
+                raise ValueError(f"Unsupported method: {method}")
+        return float(np.finfo(np.float64).eps ** (1.0 / (_ORDERS[method] + 1)))
+
+
+def _finite_difference(func, x, eps=None, method="central", sub_func=None, update_func=None, direction=None):
         """
         Unified finite difference backend to compute either:
         - full Jacobian (if direction is None)
-        - directional derivative (if direction is specified)
+        - directional derivative J @ direction (if direction is specified)
 
         Parameters
         ----------
         func : callable
-                Function R^n -> R^m
-        x : ndarray
-                Point at which to evaluate
-        eps : float
-                Perturbation step
+                Function evaluated at arrays shaped like ``x``.
+        x : array_like
+                Point at which to evaluate. Its shape is preserved for ``func``.
+        eps : float or None
+                Perturbation step; None picks a step suited to ``method``.
         method : str
                 'forward', 'central', or 'fourth'
         sub_func : callable or None
                 Custom difference function: sub_func(y0, y1) = y1 - y0
-        direction : ndarray or None
-                If provided, compute derivative along this direction vector
+        update_func : callable or None
+                Custom perturbation: update_func(x, direction, offset), default
+                ``x + offset * direction``. ``direction`` is shaped like ``x``.
+        direction : array_like or None
+                If provided, compute the derivative along this vector (not
+                normalized, so the result scales linearly with it).
 
         Returns
         -------
         grad : ndarray
-                Jacobian (m x n) or directional derivative (m,)
+                Jacobian (m x n) with flattened output and input, or (n,) for
+                a single output; directional derivative shaped like the output.
         """
-        x = np.asarray(x, dtype=float).flatten()
+        if eps is None:
+                eps = _default_eps(method)
+        elif method not in _ORDERS:
+                raise ValueError(f"Unsupported method: {method}")
 
-        if sub_func is None:
-                y0 = np.atleast_1d(func(x))
-                y_dim = y0.size
-        else:
-                y0 = func(x)
-                y_dim = sub_func(y0, y0).size
-        
-        x_dim = x.size
+        x = np.asarray(x)
+        x = x.astype(np.result_type(x.dtype, np.float64), copy=False)
 
-        def update(x, dircetion, offset):
+        def at(step_direction, offset):
                 if update_func is None:
-                        return x + offset*dircetion
+                        y = func(x + offset * step_direction)
                 else:
-                        return update_func(x, dircetion, offset)
+                        y = func(update_func(x, step_direction, offset))
+                return y if sub_func is not None else np.atleast_1d(np.asarray(y))
 
-        def eval(dircetion, offset):
-                if sub_func is None:
-                        return np.atleast_1d(func(update(x, dircetion, offset)))
-                else:
-                        return func(update(x, dircetion, offset))
+        def difference(y_from, y_to):
+                return sub_func(y_from, y_to) if sub_func is not None else y_to - y_from
 
-        def diff_eval(dircetion, eps):
+        base = []  # forward differences share one evaluation at x
+
+        def diff_eval(step_direction):
                 if method == "forward":
-                        y1 = eval(dircetion, eps)
-                        dy = sub_func(y0, y1) if sub_func else y1 - y0
-                        return dy / eps
+                        if not base:
+                                base.append(at(np.zeros_like(x), 0.0))
+                        return difference(base[0], at(step_direction, eps)) / eps
+                if method == "central":
+                        return difference(at(step_direction, -eps), at(step_direction, eps)) / (2 * eps)
+                near = difference(at(step_direction, -eps), at(step_direction, eps))
+                far = difference(at(step_direction, -2 * eps), at(step_direction, 2 * eps))
+                return (8 * near - far) / (12 * eps)
 
-                elif method == "central":
-                        y1 = eval(dircetion, -eps)
-                        y2 = eval(dircetion, +eps)
-                        dy = sub_func(y1, y2) if sub_func else y2 - y1
-                        return dy / (2 * eps)
+        if direction is not None:
+                direction = np.asarray(direction, dtype=x.dtype)
+                if direction.size != x.size:
+                        raise ValueError("Direction must have as many elements as x.")
+                return np.asarray(diff_eval(direction.reshape(x.shape)))
 
-                elif method == "fourth":
-                        y_m2h = eval(dircetion, -2 * eps)
-                        y_m1h = eval(dircetion, -1 * eps)
-                        y_p1h = eval(dircetion, +1 * eps)
-                        y_p2h = eval(dircetion, +2 * eps)
-                        if sub_func:
-                                t1 = 8 * sub_func(y_m1h, y_p1h)
-                                t2 = sub_func(y_m2h, y_p2h)
-                                dy = (t1 - t2) / (12 * eps)
-                        else:
-                                dy = (-y_p2h + 8*y_p1h - 8*y_m1h + y_m2h) / (12 * eps)
-                        return dy
+        columns = []
+        for i in range(x.size):
+                unit = np.zeros(x.size, dtype=x.dtype)
+                unit[i] = 1.0
+                columns.append(np.asarray(diff_eval(unit.reshape(x.shape))).ravel())
+        grad = np.stack(columns, axis=-1) if columns else np.zeros((0, 0))
+        return grad if grad.shape[0] > 1 else grad.reshape(-1)
 
-                else:
-                        raise ValueError(f"Unsupported method: {method}")
 
+def numerical_grad(x, func, eps=None, method="central", sub_func=None, update_func=None):
+        """Finite-difference Jacobian of ``func`` at ``x`` (see ``_finite_difference``)."""
+        return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func,
+                                  update_func=update_func, direction=None)
+
+
+def numerical_difference(x, func, eps=None, method="central", sub_func=None, update_func=None, direction=None):
+        """Finite-difference directional derivative ``J @ direction`` (default: all ones)."""
         if direction is None:
-                #compute full Jacobian (each input dimension perturbed independently)
-                grad = np.zeros((y_dim, x_dim))
-
-                for i in range(x_dim):
-                        ei = np.zeros_like(x)
-                        ei[i] = 1.0
-
-                        grad[:, i]  = diff_eval(ei, eps)
-
-                return grad if y_dim > 1 else grad.flatten()
-        else:
-                # direction is given: compute directional derivative
-                direction = np.asarray(direction, dtype=float).flatten()
-                norm = np.linalg.norm(direction)
-                if norm == 0:
-                        raise ValueError("Direction vector must not be zero.")
-                direction = direction / norm
-
-                return diff_eval(direction, eps)
-
-def numerical_grad(x, func, eps=1e-8, method="central", sub_func=None):
-        return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, direction=None)
-
-def numerical_difference(x, func, eps=1e-8, method="central", sub_func=None, update_func=None, direction=None):
-        if direction is None:
-                direction = np.ones_like(x)
-        return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func, update_func=update_func, direction=direction)
+                direction = np.ones_like(np.asarray(x, dtype=float))
+        return _finite_difference(func, x, eps=eps, method=method, sub_func=sub_func,
+                                  update_func=update_func, direction=direction)
