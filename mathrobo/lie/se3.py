@@ -9,7 +9,7 @@ import jax.numpy as jnp
 
 from .._batch import array_lib, matvec, transpose_last
 from ._se3_jacobian import adjoint_integral_coefficients, adjoint_integral_series
-from .lie_abst import LieAbstract
+from .lie_abst import LieAbstract, check_frame
 from .so3 import SO3, SO3inertia, SO3wrench
 
 class SE3(SnapshotState, LieAbstract):
@@ -93,20 +93,20 @@ class SE3(SnapshotState, LieAbstract):
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
        
     
-    @staticmethod
-    def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3':
+    @classmethod
+    def set_mat(cls, mat = np.identity(4), LIB : str = 'numpy') -> 'SE3':
         mat = as_inexact(mat, LIB)
-        return SE3(mat[..., 0:3, 0:3], mat[..., 0:3, 3], LIB)
+        return cls(mat[..., 0:3, 0:3], mat[..., 0:3, 3], LIB)
     
-    @staticmethod
-    def set_pos_quaternion(pos: Union[np.ndarray, jnp.ndarray], 
+    @classmethod
+    def set_pos_quaternion(cls, pos: Union[np.ndarray, jnp.ndarray],
                            quaternion: Union[np.ndarray, jnp.ndarray], LIB: str = 'numpy') -> 'SE3':
-        quaternion = as_inexact(quaternion, LIB)
-        assert len(pos) == 3, "Position must be a 3-element vector."
-        assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
-        assert isinstance(pos, (np.ndarray, jnp.ndarray)), "Position must be a numpy or jax array."
-        assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
-        return SE3(SO3.quaternion_to_mat(quaternion, LIB), pos, LIB)
+        pos, quaternion = as_inexact(pos, LIB), as_inexact(quaternion, LIB)
+        if pos.shape != (3,):
+            raise ValueError("Position must be a 3-element vector.")
+        if quaternion.shape != (4,):
+            raise ValueError("Quaternion must be a 4-element vector.")
+        return cls(SO3.quaternion_to_mat(quaternion, LIB), pos, LIB)
 
     def pos(self ) -> Union[np.ndarray, jnp.ndarray]:
         return readonly_view(self._pos)
@@ -115,20 +115,16 @@ class SE3(SnapshotState, LieAbstract):
         return readonly_view(self._rot)
 
     def pos_quaternion(self) -> Tuple[Union[np.ndarray, jnp.ndarray], Union[np.ndarray, jnp.ndarray]]:
-        return readonly_view(self._pos), SO3.quaternion(SO3.set_mat(self._rot, self.lib))
+        return readonly_view(self._pos), SO3(self._rot, self.lib).quaternion()
 
-    @staticmethod
-    def eye(LIB : str = 'numpy'):
-        if LIB == 'jax':
-            return SE3(jnp.identity(3), jnp.zeros(3), LIB)
-        elif LIB == 'numpy':
-          return SE3(np.identity(3), np.zeros(3), LIB)
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+    @classmethod
+    def eye(cls, LIB : str = 'numpy') -> 'SE3':
+        xp = array_lib(LIB)
+        return cls(xp.identity(3), xp.zeros(3), LIB)
 
     def inv(self) -> 'SE3':
         rot_t = transpose_last(self._rot)
-        return SE3(rot_t, -matvec(rot_t, self._pos), self.lib)
+        return type(self)(rot_t, -matvec(rot_t, self._pos), self.lib)
 
     def mat_inv(self) -> Union[np.ndarray, jnp.ndarray]:
         rot_t = transpose_last(self._rot)
@@ -646,6 +642,7 @@ class SE3(SnapshotState, LieAbstract):
 
         w = SO3.sub_tan_vec(SO3(val0.rot(),LIB), SO3(val1.rot(),LIB), frame, LIB)
 
+        check_frame(frame)
         if frame == 'bframe':
             v = matvec(transpose_last(val0.rot()), (val1.pos() - val0.pos()))
         elif frame == 'fframe':
@@ -672,7 +669,7 @@ class SE3(SnapshotState, LieAbstract):
     def __matmul__(self, rval):
         if isinstance(rval, SE3):
             rot, pos = SE3.se3_mul(self._rot, self._pos, rval._rot, rval._pos)
-            return SE3(rot, pos, self.lib)
+            return type(self)(rot, pos, self.lib)
         elif isinstance(rval, (np.ndarray, jnp.ndarray)):
             if rval.shape[-1] == 3 and (rval.ndim == 1 or rval.shape[-2:] != (4, 4)):
                 return matvec(self._rot, rval) + self._pos
@@ -710,11 +707,6 @@ class SE3(SnapshotState, LieAbstract):
         return b
 
 class SE3wrench(SE3):
-    @staticmethod
-    def set_mat(mat = np.identity(4), LIB : str = 'numpy') -> 'SE3wrench':
-        mat = as_inexact(mat, LIB)
-        return SE3wrench(mat[..., 0:3, 0:3], mat[..., 0:3, 3], LIB)
-    
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         upper = SO3.hat(self._pos, self.lib) @ self._rot
         batch_shape = self._rot.shape[:-2]
@@ -731,10 +723,6 @@ class SE3wrench(SE3):
             mat[..., 3:6, 3:6] = self._rot
             return mat
     
-    def inv(self) -> 'SE3wrench':
-        rot_t = transpose_last(self._rot)
-        return SE3wrench(rot_t, -matvec(rot_t, self._pos), self.lib)
-        
     def mat_inv_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         rot_t = transpose_last(self._rot)
         upper = -rot_t @ SO3.hat(self._pos, self.lib)

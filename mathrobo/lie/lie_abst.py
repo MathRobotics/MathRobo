@@ -6,6 +6,15 @@ from abc import ABC, abstractmethod
 import numpy as np
 import jax.numpy as jnp
 
+FRAMES = ('bframe', 'fframe')
+
+
+def check_frame(frame: str) -> None:
+    """Reject frame names other than 'bframe' (body) and 'fframe' (fixed)."""
+    if frame not in FRAMES:
+        raise ValueError(f"frame should be 'bframe' or 'fframe', got {frame!r}")
+
+
 class LieAbstract(ABC):
     @abstractmethod
     def __init__(self, LIB : str = 'numpy'): 
@@ -120,6 +129,7 @@ class LieAbstract(ABC):
         delta X @ arb_vec = hat(tan_var_vec) @ X @ arb_vec = hat_commute(X @ arb_vec) @ tan_var_vec  (fframe)
         '''
         cls = type(self)
+        check_frame(frame)
         if frame == 'bframe':
             return self.mat_adj() @ cls.hat_commute_adj(arb_vec, self.lib) @ tan_var_vec
         elif frame == 'fframe':
@@ -136,6 +146,7 @@ class LieAbstract(ABC):
         hat_commute(X @ arb_vec) (fframe)
         '''
         cls = type(self)
+        check_frame(frame)
         if frame == 'bframe':
             return self.mat_adj() @ cls.hat_commute_adj(arb_vec, self.lib)
         elif frame == 'fframe':

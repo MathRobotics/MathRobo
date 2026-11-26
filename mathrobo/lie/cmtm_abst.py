@@ -11,6 +11,7 @@ from ..basic import cm_vec as cmvec
 from .._batch import array_lib, flatten_last2, matvec
 from .se3 import SE3, SE3wrench
 from ._se3_jacobian import adjoint_integral_series_jvp, adjoint_integral_series_vjp
+from .lie_abst import check_frame
 
 T = TypeVar('T')
 
@@ -1240,21 +1241,34 @@ class CMTM(Generic[T]):
                     # fallback for non-numpy backends
                     return CMTM.set_mat(type(self._mat), self.mat() @ rval.mat(), LIB=self._lib)
                 m = self._mat @ rval._mat
-                batch_shape = np.broadcast_shapes(self._cm_vecs.shape[:-2], rval._cm_vecs.shape[:-2])
-                v = np.zeros(batch_shape + (self._n-1,self._mat.dof()), dtype=np.result_type(self._cm_vecs.dtype, rval._cm_vecs.dtype))
+                xp = array_lib(self._lib)
+                lv, rv = self._cm_vecs, rval._cm_vecs
+
+                def hat_adj(vec):
+                    return self._mat.hat_adj(vec, self._lib)
+
+                rows = []
                 if self._n > 1:
-                    v[..., 0, :] = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 0, :]) + rval._cm_vecs[..., 0, :]
+                    inv_adj = rval._mat.mat_inv_adj()
+                    rv0 = matvec(inv_adj, lv[..., 0, :])
+                    rows.append(rv0 + rv[..., 0, :])
                 if self._n > 2:
-                    rv0 = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 0, :])
-                    v[..., 1, :] = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 1, :]) + matvec(self._mat.hat_adj(rv0), rval._cm_vecs[..., 0, :]) + rval._cm_vecs[..., 1, :]
+                    rows.append(matvec(inv_adj, lv[..., 1, :])
+                                + matvec(hat_adj(rv0), rv[..., 0, :]) + rv[..., 1, :])
                 if self._n > 3:
-                    rv0 = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 0, :])
-                    rv1 = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 1, :])
-                    v[..., 2, :] = matvec(rval._mat.mat_inv_adj(), self._cm_vecs[..., 2, :]) \
-                            + matvec(self._mat.hat_adj(rv1), rval._cm_vecs[..., 0, :]) \
-                            + 0.5 * matvec(self._mat.hat_adj(matvec(self._mat.hat_adj(rv0), rval._cm_vecs[..., 0, :])), rval._cm_vecs[..., 0, :]) \
-                            + 0.5 * matvec(self._mat.hat_adj(rv0), rval._cm_vecs[..., 1, :]) \
-                            + rval._cm_vecs[..., 2, :]
+                    rv1 = matvec(inv_adj, lv[..., 1, :])
+                    rows.append(matvec(inv_adj, lv[..., 2, :])
+                                + matvec(hat_adj(rv1), rv[..., 0, :])
+                                + 0.5 * matvec(hat_adj(matvec(hat_adj(rv0), rv[..., 0, :])), rv[..., 0, :])
+                                + 0.5 * matvec(hat_adj(rv0), rv[..., 1, :])
+                                + rv[..., 2, :])
+                batch_shape = np.broadcast_shapes(lv.shape[:-2], rv.shape[:-2], *(row.shape[:-1] for row in rows))
+                dtype = xp.result_type(lv.dtype, rv.dtype)
+                if rows:
+                    v = xp.stack([xp.broadcast_to(row, batch_shape + row.shape[-1:]) for row in rows], axis=-2)
+                    v = v.astype(xp.result_type(v.dtype, dtype), copy=False)
+                else:
+                    v = xp.zeros(batch_shape + (0, self._mat.dof()), dtype=dtype)
                 return CMTM(m, cmvec.CMVector.set_cmvecs(v), LIB=self._lib)
             else:
                 raise TypeError("Right operand should be same size in left operand")
@@ -1288,6 +1302,7 @@ class CMTM(Generic[T]):
         '''
         cls = type(self)
         cls_elem = type(self._mat) 
+        check_frame(frame)
         if frame == 'bframe':
             res = matvec(self.mat_adj() @ cls.hat_commute_adj(cls_elem, arb_vec), tan_var_vec.cm_vec())
             return cmvec.CMVector.set_cmvecs(res.reshape(res.shape[:-1] + (self._n, self._mat_adj_size)))
@@ -1306,6 +1321,7 @@ class CMTM(Generic[T]):
         '''
         cls = type(self)
         cls_elem = type(self._mat)
+        check_frame(frame)
         if frame == 'bframe':
             return self.mat_adj() @ cls.hat_commute_adj(cls_elem, arb_vec)
         elif frame == 'fframe':
@@ -1325,6 +1341,7 @@ class CMTM(Generic[T]):
         cls = type(self)
         cls_elem = type(self._mat)
 
+        check_frame(frame)
         if frame == 'bframe':
             return -cls.hat_commute_adj(cls_elem, self.inv() @ arb_vec)
         elif frame == 'fframe':

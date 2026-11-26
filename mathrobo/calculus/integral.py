@@ -14,7 +14,8 @@ def build_integrator(dof, order, dt, method="euler"):
         dt : float
                 Time step.
         method : str
-                Integration method: "euler", "poly", "rk2", "rk4".
+                "euler", "rk2" or "rk4" (explicit Runge-Kutta of order 1, 2 or 4),
+                or "poly" (the exact discretization for a constant input).
 
         Returns
         -------
@@ -23,62 +24,25 @@ def build_integrator(dof, order, dt, method="euler"):
         vec : ndarray of shape (dof * order, dof)
                 Control/integration vector matrix (for highest-order derivative input).
         """
+        # For the integrator chain x' = S x + E u with constant u, an explicit
+        # Runge-Kutta method of order p reproduces the Taylor series of the
+        # exact discretization up to dt**p, so every method is a truncation.
+        max_power = {"euler": 1, "rk2": 2, "rk4": 4, "poly": order}.get(method)
+        if max_power is None:
+                raise ValueError(f"Unsupported method: {method}")
+
         dim = dof * order
         A = np.eye(dim)
         B = np.zeros((dim, dof))
+        eye = np.eye(dof)
 
-        if method == "euler":
-                # 1st-order approximation: x_{k+1} ≈ x_k + dt * dx_k
-                for i in range(order - 1):
-                        A[i * dof:(i + 1) * dof, (i + 1) * dof:(i + 2) * dof] = dt * np.eye(dof)
-                B[(order - 1) * dof:] = dt * np.eye(dof)
+        def coefficient(power):
+                return dt ** power / math.factorial(power) if power <= max_power else 0.0
 
-        elif method == "poly":
-                # Arbitrary-order Taylor expansion: dt^n / n!
-                for i in range(1, order):
-                        for j in range(i):
-                                power = i - j
-                                coef = (dt ** power) / math.factorial(power)
-                                A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = coef * np.eye(dof)
-                for i in range(order):
-                        power = order - i
-                        coef = (dt ** power) / math.factorial(power)
-                        B[i*dof:(i+1)*dof] = coef * np.eye(dof)
-
-        elif method == "rk2":
-                # Midpoint method approximation (for 2nd-order accuracy)
-                # x(t+dt) ≈ x(t) + dt * f(x(t) + 0.5*dt*f(x))
-                for i in range(1, order):
-                        for j in range(i):
-                                coef = dt ** (i - j)
-                                if i - j == 1:
-                                        coef += 0.5 * dt ** (i - j)
-                                A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = coef * np.eye(dof)
-
-                for i in range(order):
-                        coef = dt ** (order - i)
-                        if order - i == 1:
-                                coef += 0.5 * dt ** (order - i)
-                        B[i*dof:(i+1)*dof] = coef * np.eye(dof)
-
-        elif method == "rk4":
-                # RK4 is not straightforwardly expressed in this matrix form,
-                # but we can approximate with higher-weighted Taylor expansion
-                coeffs = [1, 1/2, 1/6]  # leading coefficients for 1st, 2nd, 3rd derivatives
-                for i in range(1, order):
-                        for j in range(i):
-                                power = i - j
-                                if power <= len(coeffs):
-                                        coef = coeffs[power - 1] * dt ** power
-                                        A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = coef * np.eye(dof)
-
-                for i in range(order):
-                        power = order - i
-                        if power <= len(coeffs):
-                                coef = coeffs[power - 1] * dt ** power
-                                B[i*dof:(i+1)*dof] = coef * np.eye(dof)
-
-        else:
-                raise ValueError(f"Unsupported method: {method}")
+        for i in range(1, order):
+                for j in range(i):
+                        A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = coefficient(i - j) * eye
+        for i in range(order):
+                B[i*dof:(i+1)*dof] = coefficient(order - i) * eye
 
         return A, B

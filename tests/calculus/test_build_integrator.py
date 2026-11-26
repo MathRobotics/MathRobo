@@ -34,12 +34,37 @@ def test_poly_values():
         np.testing.assert_allclose(A, expected_A, rtol=1e-10)
         np.testing.assert_allclose(B, expected_B, rtol=1e-10)
 
-def test_rk2_approx():
+def test_rk2_values():
         dof, order, dt = 1, 2, 0.1
         A, B = mr.build_integrator(dof, order, dt, method="rk2")
-        # Check basic structure (exact value derivation is difficult, so check for positive values and order)
-        assert A[0, 1] > dt       # Should be larger than Euler's method
-        assert B[1, 0] > dt       # Similarly
+        np.testing.assert_allclose(A, [[1.0, dt], [0.0, 1.0]], rtol=1e-12)
+        np.testing.assert_allclose(B, [[dt**2 / 2], [dt]], rtol=1e-12)
+
+
+def _rk_step(x, u, dt, dof, order, method):
+        def f(state):
+                return np.concatenate([state[dof:], u])
+        if method == "euler":
+                return x + dt * f(x)
+        if method == "rk2":
+                return x + dt * f(x + 0.5 * dt * f(x))
+        k1 = f(x)
+        k2 = f(x + 0.5 * dt * k1)
+        k3 = f(x + 0.5 * dt * k2)
+        k4 = f(x + dt * k3)
+        return x + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6
+
+
+@pytest.mark.parametrize("method", ["euler", "rk2", "rk4"])
+@pytest.mark.parametrize("order", [1, 2, 3, 5])
+def test_matches_explicit_runge_kutta_step(method, order):
+        dof, dt = 2, 0.3
+        rng = np.random.default_rng(order)
+        x = rng.normal(size=dof * order)
+        u = rng.normal(size=dof)
+        A, B = mr.build_integrator(dof, order, dt, method=method)
+        np.testing.assert_allclose(A @ x + B @ u, _rk_step(x, u, dt, dof, order, method), rtol=1e-12, atol=1e-12)
+
 
 def test_rk4_approx():
         dof, order, dt = 1, 3, 0.1

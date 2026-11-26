@@ -7,7 +7,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .._batch import array_lib, matvec, transpose_last
-from .lie_abst import LieAbstract
+from .lie_abst import LieAbstract, check_frame
 
 class SO3(SnapshotState, LieAbstract):
     _dof = 3
@@ -46,56 +46,45 @@ class SO3(SnapshotState, LieAbstract):
     def mat(self) -> Union[np.ndarray, jnp.ndarray]:
         return readonly_view(self._rot)
     
-    @staticmethod
-    def set_mat(mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
+    @classmethod
+    def set_mat(cls, mat = np.identity(3), LIB : str = 'numpy') -> 'SO3':
         mat = as_inexact(mat, LIB)
-        return SO3(mat, LIB)
+        return cls(mat, LIB)
     
-    def quaternion(self) -> np.ndarray:
-        # trace
-        trace = self._rot[0, 0] + self._rot[1, 1] + self._rot[2, 2]
+    def quaternion(self) -> Union[np.ndarray, jnp.ndarray]:
+        """Unit quaternion ``[..., (w, x, y, z)]`` in this object's backend.
 
-        # (w, x, y, z)
-        q = np.zeros(4, dtype=float)
+        Branches follow Shepperd's method and are selected with ``where`` so the
+        conversion works for batches and under ``jax.jit``.
+        """
+        xp = array_lib(self.lib)
+        r = self._rot
+        r00, r11, r22 = r[..., 0, 0], r[..., 1, 1], r[..., 2, 2]
+        trace = r00 + r11 + r22
+        tiny = xp.finfo(r.dtype).tiny
 
-        if trace > 0.0:
-                # trace > 0
-                s = 0.5 / np.sqrt(trace + 1.0)
-                q[0] = 0.25 / s  # w
-                q[1] = (self._rot[2, 1] - self._rot[1, 2]) * s  # x
-                q[2] = (self._rot[0, 2] - self._rot[2, 0]) * s  # y
-                q[3] = (self._rot[1, 0] - self._rot[0, 1]) * s  # z
-        else:
-                # trace <= 0
-                # search maximum element in matrix diagonal
-                if (self._rot[0, 0] > self._rot[1, 1]) and (self._rot[0, 0] > self._rot[2, 2]):
-                        # self._rot[0, 0] is maximize
-                        s = 2.0 * np.sqrt(1.0 + self._rot[0, 0] - self._rot[1, 1] - self._rot[2, 2])
-                        q[0] = (self._rot[2, 1] - self._rot[1, 2]) / s  # w
-                        q[1] = 0.25 * s                 # x
-                        q[2] = (self._rot[0, 1] + self._rot[1, 0]) / s  # y
-                        q[3] = (self._rot[0, 2] + self._rot[2, 0]) / s  # z
-                elif self._rot[1, 1] > self._rot[2, 2]:
-                        # self._rot[1, 1] is maximize
-                        s = 2.0 * np.sqrt(1.0 + self._rot[1, 1] - self._rot[0, 0] - self._rot[2, 2])
-                        q[0] = (self._rot[0, 2] - self._rot[2, 0]) / s  # w
-                        q[1] = (self._rot[0, 1] + self._rot[1, 0]) / s  # x
-                        q[2] = 0.25 * s                 # y
-                        q[3] = (self._rot[1, 2] + self._rot[2, 1]) / s  # z
-                else:
-                        # self._rot[2, 2] is maximize
-                        s = 2.0 * np.sqrt(1.0 + self._rot[2, 2] - self._rot[0, 0] - self._rot[1, 1])
-                        q[0] = (self._rot[1, 0] - self._rot[0, 1]) / s  # w
-                        q[1] = (self._rot[0, 2] + self._rot[2, 0]) / s  # x
-                        q[2] = (self._rot[1, 2] + self._rot[2, 1]) / s  # y
-                        q[3] = 0.25 * s                 # z
+        def scale(value):
+            return 2.0 * xp.sqrt(xp.maximum(value, tiny))
 
-        # normalize
-        q_norm = np.linalg.norm(q)
-        if q_norm > 1e-15:
-                q /= q_norm
+        # Each candidate is accurate where its leading component is large.
+        s = scale(1.0 + trace)
+        q_w = xp.stack([0.25 * s, (r[..., 2, 1] - r[..., 1, 2]) / s,
+                        (r[..., 0, 2] - r[..., 2, 0]) / s, (r[..., 1, 0] - r[..., 0, 1]) / s], axis=-1)
+        s = scale(1.0 + r00 - r11 - r22)
+        q_x = xp.stack([(r[..., 2, 1] - r[..., 1, 2]) / s, 0.25 * s,
+                        (r[..., 0, 1] + r[..., 1, 0]) / s, (r[..., 0, 2] + r[..., 2, 0]) / s], axis=-1)
+        s = scale(1.0 + r11 - r00 - r22)
+        q_y = xp.stack([(r[..., 0, 2] - r[..., 2, 0]) / s, (r[..., 0, 1] + r[..., 1, 0]) / s,
+                        0.25 * s, (r[..., 1, 2] + r[..., 2, 1]) / s], axis=-1)
+        s = scale(1.0 + r22 - r00 - r11)
+        q_z = xp.stack([(r[..., 1, 0] - r[..., 0, 1]) / s, (r[..., 0, 2] + r[..., 2, 0]) / s,
+                        (r[..., 1, 2] + r[..., 2, 1]) / s, 0.25 * s], axis=-1)
 
-        return q  # [w, x, y, z]
+        use_w = (trace > 0.0)[..., None]
+        use_x = ((r00 > r11) & (r00 > r22))[..., None]
+        use_y = (r11 > r22)[..., None]
+        q = xp.where(use_w, q_w, xp.where(use_x, q_x, xp.where(use_y, q_y, q_z)))
+        return q / xp.linalg.norm(q, axis=-1, keepdims=True)
         
     @staticmethod
     def quaternion_to_mat(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -118,113 +107,46 @@ class SO3(SnapshotState, LieAbstract):
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
 
-    @staticmethod
-    def set_quaternion(quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> 'SO3':
+    @classmethod
+    def set_quaternion(cls, quaternion : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> 'SO3':
         quaternion = as_inexact(quaternion, LIB)
-        assert len(quaternion) == 4, "Quaternion must be a 4-element vector."
-        assert isinstance(quaternion, (np.ndarray, jnp.ndarray)), "Quaternion must be a numpy or jax array."
-        return SO3(SO3.quaternion_to_mat(quaternion, LIB), LIB)
+        if quaternion.shape != (4,):
+            raise ValueError("Quaternion must be a 4-element vector.")
+        return cls(SO3.quaternion_to_mat(quaternion, LIB), LIB)
     
+    _EULER_ORDERS = ('ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY')
+
     @staticmethod
-    def set_euler(euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
-        euler = as_inexact(euler, LIB)
-        assert len(euler) == 3, "Euler angles must be a 3-element vector."
-        assert isinstance(euler, (np.ndarray, jnp.ndarray)), "Euler angles must be a numpy or jax array."
-        roll, pitch, yaw = euler
-        if LIB == 'jax':
-            cr = jnp.cos(roll)
-            sr = jnp.sin(roll)
-            cp = jnp.cos(pitch)
-            sp = jnp.sin(pitch)
-            cy = jnp.cos(yaw)
-            sy = jnp.sin(yaw)
-            if order == 'ZYX':
-                m = jnp.array([
-                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
-                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
-                    [  -sp,           cp*sr,           cp*cr]
-                ])
-            elif order == 'ZXY':
-                m = jnp.array([
-                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
-                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
-                    [        -cp*sr,             cp*cr,     sp]
-                ])
-            elif order == 'YXZ':
-                m = jnp.array([
-                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
-                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
-                    [        -sp*cr,     sr,             cp*cr]
-                ])
-            elif order == 'YZX':
-                m = jnp.array([
-                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
-                    [   sp,           sr*cp,           cr*cp],
-                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
-                ])
-            elif order == 'XYZ':
-                m = jnp.array([
-                    [cp*cy, -cp*sy, sp],
-                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
-                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
-                ])
-            elif order == 'XZY':
-                m = jnp.array([
-                    [cp*cy, -sy, sp*cy],
-                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
-                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
-                ])
-            else:
-                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
-            return SO3(m, LIB)
-        elif LIB == 'numpy':
-            cr = np.cos(roll)
-            sr = np.sin(roll)
-            cp = np.cos(pitch)
-            sp = np.sin(pitch)
-            cy = np.cos(yaw)
-            sy = np.sin(yaw)
-            if order == 'ZYX':
-                m = np.array([
-                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
-                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
-                    [  -sp,           cp*sr,           cp*cr]
-                ])
-            elif order == 'ZXY':
-                m = np.array([
-                    [cy*cp + sy*sp*sr, -cy*sp + sy*cp*sr, sy*cr],
-                    [sy*cp - cy*sp*sr, -sy*sp - cy*cp*sr, -cy*cr],
-                    [        -cp*sr,             cp*cr,     sp]
-                ])
-            elif order == 'YXZ':
-                m = np.array([
-                    [cp*cy + sp*sr*sy, -cr*sy, sp*cy - cp*sr*sy],
-                    [cp*sy - sp*sr*cy, cr*cy, sp*sy + cp*sr*cy],
-                    [        -sp*cr,     sr,             cp*cr]
-                ])
-            elif order == 'YZX':
-                m = np.array([
-                    [cp*cy, sr*sp - cr*cy*sy, cr*sp + sr*cy*sy],
-                    [   sp,           sr*cp,           cr*cp],
-                    [-sy*cp, sr*sp*sy + cr*cy, cr*sp*sy - sr*cy]
-                ])
-            elif order == 'XYZ':
-                m = np.array([
-                    [cp*cy, -cp*sy, sp],
-                    [sr*sp*cy + cr*sy, -sr*sp*sy + cr*cy, -sr*cp],
-                    [-cr*sp*cy + sr*sy, cr*sp*sy + sr*cy, cr*cp]
-                ])
-            elif order == 'XZY':
-                m = np.array([
-                    [cp*cy, -sy, sp*cy],
-                    [sr*sp + cr*cp*sy, cr*cy, -sr*cp + cr*sp*sy],
-                    [-cr*sp + sr*cp*sy, sr*cy, cr*cp + sr*sp*sy]
-                ])
-            else:
-                raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
-            return SO3(m, LIB)
+    def _axis_rotation(axis: int, angle, xp):
+        """Rotation about coordinate axis 0, 1 or 2, with batch shape angle.shape."""
+        c, s = xp.cos(angle), xp.sin(angle)
+        zero, one = xp.zeros_like(angle), xp.ones_like(angle)
+        if axis == 0:
+            rows = ((one, zero, zero), (zero, c, -s), (zero, s, c))
+        elif axis == 1:
+            rows = ((c, zero, s), (zero, one, zero), (-s, zero, c))
         else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+            rows = ((c, -s, zero), (s, c, zero), (zero, zero, one))
+        return xp.stack([xp.stack(row, axis=-1) for row in rows], axis=-2)
+
+    @classmethod
+    def set_euler(cls, euler : Union[np.ndarray, jnp.ndarray], order : str = 'ZYX', LIB : str = 'numpy') -> 'SO3':
+        """Rotation from angles ``euler[..., :] = (x, y, z)`` about the X, Y and Z axes.
+
+        The matrix is the product of the axis rotations in ``order``; for
+        example ``'ZYX'`` gives ``Rz(z) @ Ry(y) @ Rx(x)`` (intrinsic Z-Y-X).
+        """
+        euler = as_inexact(euler, LIB)
+        if euler.ndim == 0 or euler.shape[-1] != 3:
+            raise ValueError("Euler angles must have shape (..., 3).")
+        if order not in SO3._EULER_ORDERS:
+            raise ValueError("Unsupported order. Choose from 'ZYX', 'ZXY', 'YXZ', 'YZX', 'XYZ', 'XZY'.")
+        xp = array_lib(LIB)
+        axes = ['XYZ'.index(name) for name in order]
+        m = SO3._axis_rotation(axes[0], euler[..., axes[0]], xp)
+        for axis in axes[1:]:
+            m = m @ SO3._axis_rotation(axis, euler[..., axis], xp)
+        return cls(m, LIB)
     
     @staticmethod
     def mat_to_quaternion(mat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
@@ -232,17 +154,12 @@ class SO3(SnapshotState, LieAbstract):
         m = SO3(mat, LIB)
         return m.quaternion()
     
-    @staticmethod
-    def eye(LIB : str = 'numpy') -> 'SO3':
-        if LIB == 'jax':
-            return SO3(jnp.identity(3), LIB)
-        elif LIB == 'numpy':
-            return SO3(np.identity(3), LIB)
-        else:
-            raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
+    @classmethod
+    def eye(cls, LIB : str = 'numpy') -> 'SO3':
+        return cls(array_lib(LIB).identity(3), LIB)
 
     def inv(self) -> 'SO3':
-        return SO3(transpose_last(self._rot), self.lib)
+        return type(self)(transpose_last(self._rot), self.lib)
 
     def mat_inv(self) -> Union[np.ndarray, jnp.ndarray]:
         return transpose_last(self._rot)
@@ -432,6 +349,7 @@ class SO3(SnapshotState, LieAbstract):
     @staticmethod
     def sub_tan_vec(val0 : 'SO3', val1 : 'SO3', 
                     frame : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        check_frame(frame)
         if frame == 'bframe':
             vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
         elif frame == 'fframe':
@@ -446,7 +364,7 @@ class SO3(SnapshotState, LieAbstract):
 
     def __matmul__(self, rval):
         if isinstance(rval, SO3):
-            return SO3(SO3.so3_mul(self._rot, rval._rot), self.lib)
+            return type(self)(SO3.so3_mul(self._rot, rval._rot), self.lib)
         elif isinstance(rval, (np.ndarray, jnp.ndarray)):
             if rval.shape[-1] == 3 and (rval.ndim == 1 or rval.shape[-2:] != (3, 3)):
                 return matvec(self._rot, rval)
@@ -476,9 +394,6 @@ class SO3wrench(SO3):
     @staticmethod
     def hat_commute(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return SO3.hat(vec, LIB)
-
-    def inv(self) -> 'SO3wrench':
-        return SO3wrench(transpose_last(self._rot), self.lib)
 
     @staticmethod
     def exp(vec : Union[np.ndarray, jnp.ndarray], a : float, LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:

@@ -64,27 +64,17 @@ def isclose(a, b, LIB = 'numpy'):
         
         
 def gq_integrate(func, a, b, digit = 5, LIB = 'numpy'):
-        if LIB == 'numpy':
-            integ = np.zeros((func(0).shape))
-
-            if digit == 3:
-                quad_x = np.array((-0.77459666924, 0, 0.77459666924))
-                quad_weight = np.array((0.55555555555, 0.88888888888, 0.55555555555))
-            elif digit == 4:
-                quad_x = np.array((-0.8611363116, -0.3399810436, 0.3399810436, 0.8611363116))
-                quad_weight = np.array((0.3478548451, 0.6521451549, 0.6521451549, 0.3478548451))
-            elif digit == 5:
-                quad_x = np.array((-0.9061798459, -0.5384693101, 0, 0.5384693101, 0.9061798459))
-                quad_weight = np.array((0.2369268851, 0.4786286705, 0.5688888889, 0.4786286705, 0.2369268851))
-            
-            for i in range(digit):
-                w = quad_weight[i] * (b - a) * 0.5
-                x = quad_x[i] * (b - a) * 0.5 + (a + b) * 0.5
-                integ += w*func(x)
-
-            return integ
-        else:
-            raise ValueError("This method for 'numpy'")
+    """Integrate ``func`` over [a, b] with ``digit``-point Gauss-Legendre quadrature."""
+    if LIB != 'numpy':
+        raise ValueError("This method for 'numpy'")
+    if not isinstance(digit, (int, np.integer)) or digit < 1:
+        raise ValueError("digit must be a positive integer")
+    nodes, weights = np.polynomial.legendre.leggauss(int(digit))
+    half_width, center = 0.5 * (b - a), 0.5 * (a + b)
+    integ = 0.0
+    for x, w in zip(nodes, weights):
+        integ = integ + (w * half_width) * np.asarray(func(x * half_width + center))
+    return integ
 
 def jac_lie_wrt_scaler(lie, vec, a, dvec, LIB = 'numpy'):
     m = lie.exp(vec, a, LIB)
