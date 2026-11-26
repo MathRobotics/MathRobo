@@ -351,9 +351,9 @@ class SO3(SnapshotState, LieAbstract):
                     frame : str = 'bframe', LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         check_frame(frame)
         if frame == 'bframe':
-            vec = SO3.vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
+            vec = type(val0).vee(val0.mat_inv() @ (val1._rot - val0._rot), LIB)
         elif frame == 'fframe':
-            vec = SO3.vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
+            vec = type(val0).vee((val1._rot - val0._rot) @ val0.mat_inv(), LIB)
         return vec
     
     @staticmethod
@@ -387,6 +387,35 @@ class SO3(SnapshotState, LieAbstract):
         return f"SO3(\nrot=\n{self._rot},\nLIB='{self.lib}')"
     
 class SO3wrench(SO3):
+    """SO3 with negated algebra coordinates: ``hat(w) = -SO3.hat(w)``.
+
+    ``vee``, ``hat_adj`` and the exponentials use the same coordinates, so
+    ``vee(hat(w)) == w`` and ``hat_adj(x) @ y == vee([hat(x), hat(y)])``.
+    """
+    @staticmethod
+    def vee(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return -SO3.vee(vec_hat, LIB)
+
+    @staticmethod
+    def hat_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return -SO3.hat(vec, LIB)
+
+    @staticmethod
+    def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return SO3.hat(vec, LIB)
+
+    @staticmethod
+    def vee_adj(mat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return -SO3.vee(mat, LIB)
+
+    @staticmethod
+    def exp_adj(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return SO3wrench.exp(vec, a, LIB)
+
+    @staticmethod
+    def exp_integ_adj(vec : Union[np.ndarray, jnp.ndarray], a : float = 1., LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        return SO3wrench.exp_integ(vec, a, LIB)
+
     @staticmethod
     def hat(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         return -SO3.hat(vec, LIB)

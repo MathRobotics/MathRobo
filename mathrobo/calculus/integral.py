@@ -36,13 +36,14 @@ def build_integrator(dof, order, dt, method="euler"):
         B = np.zeros((dim, dof))
         eye = np.eye(dof)
 
-        def coefficient(power):
-                return dt ** power / math.factorial(power) if power <= max_power else 0.0
-
-        for i in range(1, order):
-                for j in range(i):
-                        A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = coefficient(i - j) * eye
-        for i in range(order):
-                B[i*dof:(i+1)*dof] = coefficient(order - i) * eye
+        # Only powers up to max_power are nonzero, so fill just those block
+        # diagonals: O(order * max_power) blocks instead of O(order**2).
+        for power in range(1, min(max_power, order) + 1):
+                block = dt ** power / math.factorial(power) * eye
+                for j in range(order - power):
+                        i = j + power
+                        A[j*dof:(j+1)*dof, i*dof:(i+1)*dof] = block
+                i = order - power
+                B[i*dof:(i+1)*dof] = block
 
         return A, B

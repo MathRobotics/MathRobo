@@ -102,8 +102,8 @@ class SE3(SnapshotState, LieAbstract):
     def set_pos_quaternion(cls, pos: Union[np.ndarray, jnp.ndarray],
                            quaternion: Union[np.ndarray, jnp.ndarray], LIB: str = 'numpy') -> 'SE3':
         pos, quaternion = as_inexact(pos, LIB), as_inexact(quaternion, LIB)
-        if pos.shape != (3,):
-            raise ValueError("Position must be a 3-element vector.")
+        if pos.ndim == 0 or pos.shape[-1] != 3:
+            raise ValueError("Position must have shape (..., 3).")
         if quaternion.shape != (4,):
             raise ValueError("Quaternion must be a 4-element vector.")
         return cls(SO3.quaternion_to_mat(quaternion, LIB), pos, LIB)
@@ -707,6 +707,13 @@ class SE3(SnapshotState, LieAbstract):
         return b
 
 class SE3wrench(SE3):
+    """SE3 pose acting on wrenches: ``mat_adj`` and ``hat_adj`` are coadjoint.
+
+    ``mat``, ``hat`` and ``vee`` are those of SE3, so motion composition (for
+    example in CMTM products) uses ``_motion_cls`` rather than ``hat_adj``.
+    """
+    _motion_cls = SE3
+
     def mat_adj(self) -> Union[np.ndarray, jnp.ndarray]:
         upper = SO3.hat(self._pos, self.lib) @ self._rot
         batch_shape = self._rot.shape[:-2]
@@ -811,6 +818,16 @@ class SE3wrench(SE3):
         else:
             raise ValueError("Unsupported library. Choose 'numpy' or 'jax'.")
     
+    @staticmethod
+    def vee_adj(vec_hat : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
+        """Inverse of hat_adj: the force part sits in the upper-right block."""
+        vec_hat = as_inexact(vec_hat, LIB)
+        if vec_hat.shape[-2:] != (6, 6):
+            raise ValueError("Input matrix must be of size (...,6,6).")
+        w = 0.5 * (SO3.vee(vec_hat[..., 0:3, 0:3], LIB) + SO3.vee(vec_hat[..., 3:6, 3:6], LIB))
+        v = SO3.vee(vec_hat[..., 0:3, 3:6], LIB)
+        return array_lib(LIB).concatenate((w, v), axis=-1)
+
     @staticmethod
     def hat_commute_adj(vec : Union[np.ndarray, jnp.ndarray], LIB : str = 'numpy') -> Union[np.ndarray, jnp.ndarray]:
         '''

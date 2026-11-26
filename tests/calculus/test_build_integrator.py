@@ -84,3 +84,15 @@ def test_rk4_approx():
 def test_invalid_method():
         with pytest.raises(ValueError, match="Unsupported method"):
                 mr.build_integrator(1, 2, 0.1, method="invalid")
+
+
+def test_poly_is_exact_discretization_for_high_order():
+        from scipy.linalg import expm
+        dof, order, dt = 2, 7, 0.4
+        dim = dof * order
+        S = np.zeros((dim + dof, dim + dof))
+        S[:dim, dof:] = np.eye(dim)
+        exact = expm(S * dt)
+        A, B = mr.build_integrator(dof, order, dt, method="poly")
+        np.testing.assert_allclose(A, exact[:dim, :dim], rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(B, exact[:dim, dim:], rtol=1e-12, atol=1e-15)

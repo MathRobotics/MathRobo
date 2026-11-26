@@ -1244,12 +1244,18 @@ class CMTM(Generic[T]):
                 xp = array_lib(self._lib)
                 lv, rv = self._cm_vecs, rval._cm_vecs
 
+                # Compose velocities with the adjoint of the group acting through
+                # hat/mat; wrench classes expose a coadjoint hat_adj instead.
+                motion = getattr(type(self._mat), '_motion_cls', None)
+                left_elem = self._mat if motion is None else motion.set_mat(self._mat.mat(), self._lib)
+                right_elem = rval._mat if motion is None else motion.set_mat(rval._mat.mat(), self._lib)
+
                 def hat_adj(vec):
-                    return self._mat.hat_adj(vec, self._lib)
+                    return left_elem.hat_adj(vec, self._lib)
 
                 rows = []
                 if self._n > 1:
-                    inv_adj = rval._mat.mat_inv_adj()
+                    inv_adj = right_elem.mat_inv_adj()
                     rv0 = matvec(inv_adj, lv[..., 0, :])
                     rows.append(rv0 + rv[..., 0, :])
                 if self._n > 2:
